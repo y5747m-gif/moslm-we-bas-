@@ -55,7 +55,18 @@ jobs:
           fi
 
       - name: Build release APK
-        run: gradle -p android assembleRelease --no-daemon --stacktrace
+        run: gradle -p android assembleRelease --no-daemon --stacktrace 2>&1 | tee /tmp/gradle.log
+        continue-on-error: false
+
+      - name: On failure, push build log to repo
+        if: failure()
+        run: |
+          tail -c 20000 /tmp/gradle.log > build-error.log || echo "no log" > build-error.log
+          git config user.name "arena-build-bot"
+          git config user.email "bot@arena.ai"
+          git add build-error.log
+          git commit -m "ci: سجل فشل البناء [skip ci]" || true
+          git push "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" "HEAD:${{ github.ref_name }}"
 
       - name: Verify APK signature
         run: |
