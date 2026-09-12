@@ -12,8 +12,9 @@
     "export:android": "CAPACITOR_EXPORT=true next build",
     "cap:sync": "npx cap sync android",
     "cap:open": "npx cap open android",
-    "build:apk": "CAPACITOR_EXPORT=true next build && npx cap sync android",
-    "apk:assemble": "cd android && ./gradlew assembleDebug"
+    "build:apk": "CAPACITOR_EXPORT=true next build && rm -f out/downloads/hatsally.apk && npx cap sync android",
+    "apk:assemble": "cd android && ./gradlew assembleDebug",
+    "test:vision": "npx tsx scripts/vision-test.ts"
   },
   "dependencies": {
     "@capacitor-community/text-to-speech": "^8.0.2",
@@ -24,6 +25,7 @@
     "@capacitor/haptics": "^8.0.2",
     "@capacitor/local-notifications": "^8.3.1",
     "@capacitor/preferences": "^8.0.1",
+    "@vladmandic/face-api": "^1.7.15",
     "dotenv": "17.3.1",
     "drizzle-orm": "0.45.2",
     "lucide-react": "^1.43.0",

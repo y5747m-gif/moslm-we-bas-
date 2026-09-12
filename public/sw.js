@@ -1,14 +1,19 @@
-// HatSally - هتصلي يعني هتصلي - Service Worker v5 Auto-Update + Male Voice
-// Features: Auto update for all users, persistent alarm, notification resurrection, male voice
-const CACHE_NAME = "hatsally-v5-auto-update-male";
-const APP_VERSION = "5.0.0-auto-male-voice";
+// HatSally - هتصلي يعني هتصلي - Service Worker v6 Real Vision + Face Models
+// Features: Auto update, persistent alarm, real faucet/mat verification, offline face models
+const CACHE_NAME = "hatsally-v6-real-vision";
+const APP_VERSION = "5.1.0-real-vision";
 const PRECACHE_URLS = [
   "/",
   "/icons/icon-192.png",
   "/icons/icon-192x192.png",
   "/icons/icon-512.png",
   "/icons/icon-512x512.png",
-  "/manifest.webmanifest"
+  "/manifest.webmanifest",
+  // نماذج كشف الوجه - تعمل بدون إنترنت بعد أول تحميل
+  "/models/tiny_face_detector_model-weights_manifest.json",
+  "/models/tiny_face_detector_model.bin",
+  "/models/face_landmark_68_tiny_model-weights_manifest.json",
+  "/models/face_landmark_68_tiny_model.bin"
 ];
 
 const DB_NAME = "hatSallyDB";

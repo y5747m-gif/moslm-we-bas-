@@ -18,3 +18,6 @@ android/*.iml
 *.jks
 !public/downloads/hatsally.apk
 tsconfig.tsbuildinfo
+
+# Vision test fixtures (generated, 26MB - local regression only)
+vision-test/

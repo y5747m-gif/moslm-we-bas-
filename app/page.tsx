@@ -37,6 +37,8 @@ import {
   Globe,
   Heart,
 } from "lucide-react";
+import { verifyCapture, warmUpVerification, type VerifyTask } from "../lib/verify";
+import type { VisionCheck } from "../lib/vision";
 import {
   isNativeApp as checkNativeApp,
   isAndroidDevice,
@@ -341,6 +343,52 @@ const translations = {
     pwaOptionDesc: "بدون تحميل ملفات - يعمل على كل الأجهزة",
     nativeRunningTitle: "يعمل داخل التطبيق الأصلي ✓",
     nativeRunningDesc: "أنت تستخدم نسخة APK - المنبه والصوت يعملان بقدرات الهاتف الكاملة",
+    // نتائج التحقق البصري الحقيقي
+    msgTapOk: "صنبور مياه حقيقي ✓",
+    msgTapFail: "لا يبدو صنبور مياه - حاول مجدداً",
+    msgMatOk: "مصلاة حقيقية ✓",
+    msgMatFail: "لا تبدو مصلاة - حاول مجدداً",
+    msgFaceOk: "وجه وعينان مفتوحتان ✓",
+    msgFaceFail: "تعذر تأكيد الوجه - حاول مجدداً",
+    msgFaceNoFace: "لا يوجد وجه - أظهر وجهك للكاميرا",
+    msgFaceSmall: "الوجه بعيد - اقترب أكثر",
+    msgEyesClosed: "العينان مغلقتان - افتحهما جيداً!",
+    cl_photo: "صورة واضحة",
+    cl_sharp: "ثبات",
+    cl_metal: "معدن",
+    cl_chrome: "كروم",
+    cl_shape: "شكل الصنبور",
+    cl_solid: "جسم متماسك",
+    cl_shine: "لمعة",
+    cl_sink: "مغسلة",
+    cl_symmetry: "تناظر",
+    cl_colors: "ألوان سجاد",
+    cl_texture: "نسيج",
+    cl_border: "إطار",
+    cl_pattern: "زخارف",
+    cl_rich: "امتلاء",
+    cl_faceFound: "وجه بشري",
+    cl_faceSize: "قرب الوجه",
+    cl_eyesOpen: "عينان مفتوحتان",
+    tipLight: "حسّن الإضاءة حولك",
+    tipSteady: "ثبت يدك أثناء التصوير",
+    tipTapCloser: "اقترب من الصنبور حتى يملأ الصورة",
+    tipTapAngle: "صوّر الصنبور من الأمام مباشرة",
+    tipTapLight: "أضئ الصنبور ليظهر لمعان المعدن",
+    tipTapSink: "أظهر المغسلة مع الصنبور",
+    tipTapOnly: "اجعل الصنبور وحده في الصورة",
+    tipNotFace: "هذه صورة وجه وليست المطلوب",
+    tipNotTap: "هذا صنبور وليس مصلاة",
+    tipMatCenter: "وسّط السجادة في الصورة",
+    tipMatWhole: "أظهر السجادة كاملة بحدودها",
+    tipMatCloser: "اقترب لتظهر الزخارف",
+    tipMatColors: "تأكد من ظهور ألوان السجادة",
+    tipMatFill: "املأ الصورة بالسجادة",
+    tipFaceCloser: "قرّب وجهك من الكاميرا",
+    tipEyesOpen: "افتح عينيك واسعاً وانظر للكاميرا",
+    tipFaceRetry: "أعد التصوير بإضاءة أفضل",
+    attemptsLabel: "المحاولات",
+    canConfirmAnyway: "يمكنك التأكيد",
   },
   en: {
     appName: "HatSally - You WILL Pray",
@@ -613,6 +661,52 @@ const translations = {
     pwaOptionDesc: "No file download - works on all devices",
     nativeRunningTitle: "Running inside native app ✓",
     nativeRunningDesc: "You are using the APK version - alarm & voice use full phone capabilities",
+    // Real visual verification results
+    msgTapOk: "Real water tap ✓",
+    msgTapFail: "Not a water tap - try again",
+    msgMatOk: "Real prayer mat ✓",
+    msgMatFail: "Not a prayer mat - try again",
+    msgFaceOk: "Face with open eyes ✓",
+    msgFaceFail: "Face not confirmed - try again",
+    msgFaceNoFace: "No face - show your face",
+    msgFaceSmall: "Face too far - get closer",
+    msgEyesClosed: "Eyes closed - open them wide!",
+    cl_photo: "Clear photo",
+    cl_sharp: "Steady",
+    cl_metal: "Metal",
+    cl_chrome: "Chrome",
+    cl_shape: "Tap shape",
+    cl_solid: "Solid body",
+    cl_shine: "Shine",
+    cl_sink: "Sink",
+    cl_symmetry: "Symmetry",
+    cl_colors: "Rug colors",
+    cl_texture: "Texture",
+    cl_border: "Border",
+    cl_pattern: "Patterns",
+    cl_rich: "Fill",
+    cl_faceFound: "Human face",
+    cl_faceSize: "Face close",
+    cl_eyesOpen: "Eyes open",
+    tipLight: "Improve lighting around you",
+    tipSteady: "Hold steady while capturing",
+    tipTapCloser: "Get closer until tap fills the photo",
+    tipTapAngle: "Photograph the tap straight from front",
+    tipTapLight: "Light the tap to show metal shine",
+    tipTapSink: "Show the sink with the tap",
+    tipTapOnly: "Keep only the tap in the photo",
+    tipNotFace: "This is a face photo, not what's needed",
+    tipNotTap: "This is a tap, not a prayer mat",
+    tipMatCenter: "Center the mat in the photo",
+    tipMatWhole: "Show the whole mat with its borders",
+    tipMatCloser: "Get closer to show patterns",
+    tipMatColors: "Make sure mat colors are visible",
+    tipMatFill: "Fill the photo with the mat",
+    tipFaceCloser: "Bring your face closer to camera",
+    tipEyesOpen: "Open your eyes wide, look at camera",
+    tipFaceRetry: "Retake with better lighting",
+    attemptsLabel: "Attempts",
+    canConfirmAnyway: "You may confirm",
   },
 };
 
@@ -633,7 +727,7 @@ export default function Page() {
   const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [aiAnalyzing, setAiAnalyzing] = useState(false);
-  const [aiResult, setAiResult] = useState<{ valid: boolean; confidence: number; message: string } | null>(null);
+  const [aiResult, setAiResult] = useState<{ valid: boolean; confidence: number; message: string; checks: VisionCheck[]; tips: string[] } | null>(null);
   const [cameraPermissionError, setCameraPermissionError] = useState(false);
   const [cameraStreamActive, setCameraStreamActive] = useState(false);
 
@@ -679,6 +773,8 @@ export default function Page() {
   const verificationSpeechRef = useRef<NodeJS.Timeout | null>(null);
 
   const t = translations[language];
+  // ترجمة ديناميكية لمفاتيح الفحوصات والنصائح القادمة من محرك التحقق
+  const tr = (key: string): string => ((t as unknown as Record<string, string>)[key] || key);
   const isDark = theme === "dark";
   const isRTL = language === "ar";
 
@@ -1011,214 +1107,23 @@ export default function Page() {
 
   const [verificationAttempts, setVerificationAttempts] = useState(0);
   // Improved AI Image Analysis - much more lenient for face
-  const analyzeImageWithAI = useCallback(async (imageDataUrl: string, taskId: VerificationId): Promise<{ valid: boolean; confidence: number; message: string }> => {
-    return new Promise((resolve) => {
-      const img = new Image();
-      img.onload = async () => {
-        // First try native FaceDetector for face - most reliable
-        if (taskId === "face" && (window as any).FaceDetector) {
-          try {
-            const detector = new (window as any).FaceDetector({ fastMode: false, maxDetectedFaces: 3 });
-            const faces = await detector.detect(img);
-            if (faces && faces.length > 0) {
-              // Face found by browser API = 90%+ valid, eyes assumed open if face detected
-              // Check bounding box size - should be reasonable (not too small)
-              const face = faces[0];
-              const box = face.boundingBox;
-              const areaRatio = (box.width * box.height) / (img.width * img.height);
-              // Even small face is OK for selfie, but we prefer larger
-              const confidence = areaRatio > 0.05 ? 92 : areaRatio > 0.02 ? 85 : 75;
-              console.log(`🤖 FaceDetector found ${faces.length} face(s), areaRatio ${areaRatio.toFixed(3)}`);
-              resolve({
-                valid: true,
-                confidence,
-                message: language === "ar" ? "وجه وعينان مفتوحتان ✓" : "Face & open eyes ✓",
-              });
-              return;
-            }
-            // If FaceDetector exists but no face, fall through to heuristic but with low confidence
-            console.log("🤖 FaceDetector: no face found, falling to heuristic");
-          } catch (e) {
-            console.log("🤖 FaceDetector error, heuristic fallback", e);
-          }
-        }
-
-        const canvas = document.createElement("canvas");
-        const ctx = canvas.getContext("2d");
-        if (!ctx) {
-          resolve({ valid: true, confidence: 75, message: "تم التحليل" });
-          return;
-        }
-        canvas.width = 224;
-        canvas.height = 224;
-        ctx.drawImage(img, 0, 0, 224, 224);
-        const imageData = ctx.getImageData(0, 0, 224, 224);
-        const data = imageData.data;
-
-        let totalBrightness = 0;
-        let skinPixels = 0;
-        let skinPixelsCenter = 0;
-        let metallicPixels = 0;
-        let bluePixels = 0;
-        let greenPixels = 0;
-        let redPixels = 0;
-        let darkPixels = 0;
-        let edgeScore = 0;
-        const gray: number[] = [];
-
-        // Pre-calc for speed
-        for (let i = 0; i < data.length; i += 4) {
-          const idxPixel = i / 4;
-          const y = Math.floor(idxPixel / 224);
-          const x = idxPixel % 224;
-          const r = data[i];
-          const g = data[i + 1];
-          const b = data[i + 2];
-          const brightness = (r + g + b) / 3;
-          gray.push(brightness);
-          totalBrightness += brightness;
-
-          // Improved skin detection - multiple ranges for different tones
-          const isSkin1 = r > 95 && g > 40 && b > 20 && r > g && r > b && Math.abs(r - g) > 10;
-          const isSkin2 = r > 80 && g > 50 && b > 30 && r > 80 && g > 30 && r - g > 5 && r - b > 10;
-          const isSkin3 = r > 60 && g > 40 && b > 20 && r > g && r > b * 0.8 && r > 50; // darker tones
-          const isSkin = isSkin1 || isSkin2 || isSkin3;
-          if (isSkin) {
-            skinPixels++;
-            // Center region (20%-80% both axes) should have more skin for face selfies
-            if (x > 45 && x < 179 && y > 30 && y < 180) skinPixelsCenter++;
-          }
-
-          const maxC = Math.max(r, g, b);
-          const minC = Math.min(r, g, b);
-          const sat = maxC === 0 ? 0 : (maxC - minC) / maxC;
-          if (sat < 0.3 && brightness > 40 && brightness < 230) metallicPixels++;
-          if (b > 80 && b > r * 0.8) bluePixels++;
-          if (g > 60) greenPixels++;
-          if (r > 90 && r > g + 10) redPixels++;
-          if (brightness < 40) darkPixels++;
-        }
-
-        for (let y = 1; y < 224; y++) {
-          for (let x = 1; x < 224; x++) {
-            const idx = y * 224 + x;
-            if (Math.abs(gray[idx] - gray[idx - 1]) > 25) edgeScore++;
-            if (Math.abs(gray[idx] - gray[idx - 224]) > 25) edgeScore++;
-          }
-        }
-
-        const totalPixels = 224 * 224;
-        const centerPixels = 134 * 150; // approx center area
-        const avgBrightness = totalBrightness / totalPixels;
-        const edgeDensity = edgeScore / (totalPixels * 2);
-        const skinRatio = skinPixels / totalPixels;
-        const centerSkinRatio = skinPixelsCenter / centerPixels;
-        const metallicRatio = metallicPixels / totalPixels;
-        const blueRatio = bluePixels / totalPixels;
-        const greenRatio = greenPixels / totalPixels;
-        const darkRatio = darkPixels / totalPixels;
-
-        if (taskId === "water") {
-          const notBlank = edgeDensity > 0.015 && avgBrightness > 20 && avgBrightness < 235;
-          let confidence = 20;
-          if (metallicRatio > 0.04) confidence += 30;
-          if (edgeDensity > 0.04) confidence += 20;
-          if (blueRatio > 0.005) confidence += 15;
-          if (notBlank) confidence += 15;
-          if (edgeDensity > 0.02) confidence += 10;
-          confidence = Math.min(95, confidence + Math.random() * 8);
-          const valid = confidence > 35 && notBlank; // lowered from 55 to 35
-          resolve({
-            valid,
-            confidence: Math.round(confidence),
-            message: valid ? (language === "ar" ? "صنبور مياه حقيقي ✓" : "Real water tap ✓") : (language === "ar" ? "صورة غير واضحة، حاول تقريب الصنبور" : "Unclear, try closer"),
-          });
-        } else if (taskId === "prayer") {
-          const notBlank = avgBrightness > 20 && avgBrightness < 230 && edgeDensity > 0.02;
-          let confidence = 25;
-          if (greenRatio > 0.02 || redPixels / totalPixels > 0.03) confidence += 25;
-          if (edgeDensity > 0.06) confidence += 25;
-          if (edgeDensity > 0.03) confidence += 15;
-          if (notBlank) confidence += 10;
-          confidence = Math.min(96, confidence + Math.random() * 10);
-          const valid = confidence > 32 && notBlank; // lowered from 50 to 32
-          resolve({
-            valid,
-            confidence: Math.round(confidence),
-            message: valid ? (language === "ar" ? "مصلاة حقيقية ✓" : "Real prayer mat ✓") : (language === "ar" ? "صورة غير واضحة، حاول إظهار السجادة" : "Unclear, show mat"),
-          });
-        } else if (taskId === "face") {
-          // SUPER LENIENT FACE DETECTION
-          // For selfie, center should have skin, overall brightness reasonable, not blank
-          const hasSomeSkin = skinRatio > 0.02 || centerSkinRatio > 0.04;
-          const hasGoodSkin = skinRatio > 0.04 || centerSkinRatio > 0.08;
-          const reasonableBrightness = avgBrightness > 25 && avgBrightness < 225;
-          const notTooDark = darkRatio < 0.75;
-          const hasEdges = edgeDensity > 0.02;
-          const notBlank = edgeDensity > 0.01 && avgBrightness > 15 && avgBrightness < 240;
-
-          // Eye detection - very lenient: look for dark spots in eye band
-          let eyeCandidates = 0;
-          const eyeBandTop = Math.floor(224 * 0.2);
-          const eyeBandBottom = Math.floor(224 * 0.65);
-          for (let y = eyeBandTop; y < eyeBandBottom; y += 2) {
-            for (let x = 45; x < 179; x += 2) {
-              const idx = y * 224 + x;
-              const gVal = gray[idx];
-              if (gVal < 70) {
-                // Dark pixel could be pupil/eye lash
-                // Check surrounding is brighter (skin)
-                const neighbors = [
-                  gray[idx - 1] || 0,
-                  gray[idx + 1] || 0,
-                  gray[idx - 224] || 0,
-                  gray[idx + 224] || 0,
-                ];
-                const brighterNeighbors = neighbors.filter(v => v > gVal + 15).length;
-                if (brighterNeighbors >= 2) eyeCandidates++;
-              }
-            }
-          }
-          // Very lenient: 3+ dark spots in eye band = eyes probably visible
-          const eyesLikely = eyeCandidates >= 3;
-          const eyesClearly = eyeCandidates >= 10;
-
-          let confidence = 10;
-          if (hasSomeSkin) confidence += 30;
-          if (hasGoodSkin) confidence += 20;
-          if (reasonableBrightness) confidence += 10;
-          if (notTooDark) confidence += 5;
-          if (hasEdges) confidence += 10;
-          if (eyesLikely) confidence += 15;
-          if (eyesClearly) confidence += 15;
-          if (centerSkinRatio > 0.12) confidence += 10; // strong center face
-
-          confidence = Math.min(98, confidence + Math.random() * 10);
-          
-          // SUPER LENIENT VALIDATION:
-          // If any skin detected and not blank image, consider valid
-          // We prioritize not blocking user who opened eyes
-          const valid = (hasSomeSkin && notBlank && reasonableBrightness) || confidence > 38;
-
-          let msg = "";
-          if (!notBlank) msg = language === "ar" ? "صورة فارغة أو مظلمة جداً" : "Blank or too dark";
-          else if (!hasSomeSkin) msg = language === "ar" ? "لم يتم العثور على وجه - قرّب الكاميرا" : "No face - get closer";
-          else if (!eyesLikely && confidence < 50) msg = language === "ar" ? "افتح عينيك أكثر واقترب قليلاً" : "Open eyes wider, get closer";
-          else msg = valid ? (language === "ar" ? "وجه وعينان مفتوحتان ✓" : "Face & open eyes ✓") : (language === "ar" ? "حاول مرة أخرى - تأكد الإضاءة جيدة" : "Try again - good lighting");
-
-          // Always pass if confidence >= 38 or hasGoodSkin, to avoid stuck
-          const finalValid = valid || (hasGoodSkin && reasonableBrightness && notBlank);
-
-          console.log(`🤖 Face heuristic: skin ${skinRatio.toFixed(3)} center ${centerSkinRatio.toFixed(3)} eyes ${eyeCandidates} edge ${edgeDensity.toFixed(3)} bright ${avgBrightness.toFixed(0)} conf ${confidence} valid ${finalValid}`);
-
-          resolve({ valid: finalValid, confidence: Math.round(confidence), message: msg });
-        } else {
-          resolve({ valid: true, confidence: 80, message: "OK" });
-        }
-      };
-      img.onerror = () => resolve({ valid: true, confidence: 60, message: language === "ar" ? "تم - تخطي التحليل" : "OK - skip analysis" }); // Fail open, don't block user
-      img.src = imageDataUrl;
-    });
+  // محرك التحقق الحقيقي: رؤية حاسوبية للصنبور/المصلاة + شبكة عصبية للوجه
+  // messageKey يُترجم عبر قاموس اللغة الحالي
+  const analyzeImageWithAI = useCallback(async (
+    imageDataUrl: string,
+    taskId: VerificationId,
+    attempt: number
+  ): Promise<{ valid: boolean; confidence: number; message: string; checks: VisionCheck[]; tips: string[] }> => {
+    const task = taskId as VerifyTask;
+    const r = await verifyCapture(imageDataUrl, task, attempt);
+    const dict = translations[language] as unknown as Record<string, string>;
+    return {
+      valid: r.valid,
+      confidence: r.confidence,
+      message: dict[r.messageKey] || r.messageKey,
+      checks: r.checks,
+      tips: r.tips,
+    };
   }, [language]);
 
   // Helper: Get best male voice - v5 improved for real male voice
@@ -1541,6 +1446,8 @@ export default function Page() {
   const triggerAlarm = useCallback(() => {
     setAlarmStage("ringing");
     setTimeSinceRinging(0);
+    // تسخين محرك كشف الوجه مبكراً حتى يكون جاهزاً عند التحقق
+    warmUpVerification();
     if (userName) speakWakeUp(userName, false);
     playGentleTone();
     speechIntervalRef.current = setInterval(() => {
@@ -2008,8 +1915,8 @@ export default function Page() {
 
     // If forcePass from UI (user pressed confirm anyway after low confidence)
     if (forcePass && aiResult) {
-      // Allow pass if confidence >=15 or attempts >=1
-      if (aiResult.confidence < 10 && verificationAttempts < 1) {
+      // صارم: يُسمح بالتأكيد اليدوي فقط عند ثقة ≥30 أو بعد محاولتين
+      if (aiResult.confidence < 25 && verificationAttempts < 2) {
         // Still too low, require at least one more try
         if ("vibrate" in navigator) navigator.vibrate([100, 50, 100]);
         return;
@@ -2021,24 +1928,29 @@ export default function Page() {
       setAiAnalyzing(true);
       setAiResult(null);
       try {
-        let aiCheck = await analyzeImageWithAI(capturedImage, currentTaskId);
+        let aiCheck = await analyzeImageWithAI(capturedImage, currentTaskId, verificationAttempts);
 
         setAiResult(aiCheck);
         setAiAnalyzing(false);
         setVerificationAttempts(prev => prev + 1);
 
         if (!aiCheck.valid) {
-          // فشل التحليل - لا نمسح الصورة، نترك المستخدم يعيد المحاولة أو يؤكد على أي حال إذا الثقة معقولة
+          // فشل التحليل - نعرض الفحوصات والنصائح، والمستخدم يعيد التصوير
+          // زر "تأكيد على أي حال" يظهر فقط عند ثقة ≥30 أو بعد محاولتين
           if ("vibrate" in navigator) navigator.vibrate([80, 40, 80]);
-          // If confidence is decent (>=20) or attempts >=2, we will show a "Confirm anyway" button in UI
-          // Do not auto-clear image anymore
           return;
         }
       } catch (e) {
         console.error("AI analysis error", e);
         setAiAnalyzing(false);
-        // On error, don't block - allow pass with 60% confidence
-        setAiResult({ valid: true, confidence: 60, message: language === "ar" ? "تم - تخطي التحقق ✓" : "OK - skip ✓" });
+        // عند الخطأ: فشل آمن مع إمكانية إعادة المحاولة (لا تمرير تلقائي)
+        setAiResult({
+          valid: false,
+          confidence: 10,
+          message: language === "ar" ? "تعذر تحليل الصورة - أعد التصوير" : "Analysis failed - retake photo",
+          checks: [],
+          tips: ["tipFaceRetry"],
+        });
       }
     }
 
@@ -3156,8 +3068,8 @@ export default function Page() {
                                   <button 
                                     onClick={() => {
                                       if (aiResult && !aiResult.valid) {
-                                        // If low confidence but we have result, try to force pass if confidence >=15 or attempts >=1
-                                        if (aiResult.confidence >= 15 || verificationAttempts >= 1) {
+                                        // تأكيد يدوي فقط عند ثقة ≥30 أو بعد محاولتين، وإلا إعادة تحليل
+                                        if (aiResult.confidence >= 30 || verificationAttempts >= 2) {
                                           confirmCapture(true);
                                         } else {
                                           // Retry analysis
@@ -3169,7 +3081,7 @@ export default function Page() {
                                       }
                                     }} 
                                     disabled={aiAnalyzing}
-                                    className={`h-10 rounded-full font-bold text-[11px] flex items-center justify-center gap-1 transition ${aiAnalyzing ? "bg-white/20 text-white/50" : aiResult && !aiResult.valid ? (aiResult.confidence >= 15 || verificationAttempts >=1 ? "bg-emerald-500 text-black hover:bg-emerald-400" : "bg-amber-500 text-black") : "bg-emerald-500 text-black hover:bg-emerald-400"}`}
+                                    className={`h-10 rounded-full font-bold text-[11px] flex items-center justify-center gap-1 transition ${aiAnalyzing ? "bg-white/20 text-white/50" : aiResult && !aiResult.valid ? (aiResult.confidence >= 30 || verificationAttempts >= 2 ? "bg-emerald-500 text-black hover:bg-emerald-400" : "bg-amber-500 text-black") : "bg-emerald-500 text-black hover:bg-emerald-400"}`}
                                   >
                                     {aiAnalyzing ? (
                                       <>
@@ -3177,7 +3089,7 @@ export default function Page() {
                                         {t.aiAnalyzing}
                                       </>
                                     ) : aiResult && !aiResult.valid ? (
-                                      aiResult.confidence >= 15 || verificationAttempts >=1 ? (
+                                      aiResult.confidence >= 30 || verificationAttempts >= 2 ? (
                                         <>
                                           <Check className="w-3 h-3" />
                                           {language === "ar" ? "تأكيد على أي حال ✓" : "Confirm anyway ✓"}
@@ -3208,28 +3120,29 @@ export default function Page() {
                                     {t.retake}
                                   </button>
                                 </div>
-                                {aiResult && !aiResult.valid && (
-                                  <div className="mt-2 p-2 rounded-xl bg-amber-500/10 border border-amber-500/20">
-                                    <p className="text-[9px] text-amber-200 leading-relaxed text-center">
-                                      {language === "ar" ? (
-                                        currentVerificationIndex===2 ? (
-                                          aiResult.confidence >= 15 || verificationAttempts >= 1
-                                            ? `نصيحة: قرّب وجهك، إضاءة جيدة، افتح عينيك واسعاً. الثقة ${aiResult.confidence}% - يمكنك التأكيد على أي حال ✓`
-                                            : `نصيحة: قرّب وجهك، إضاءة جيدة، افتح عينيك واسعاً. الثقة ${aiResult.confidence}% - حاول مرة أخرى`
-                                        ) : `نصيحة: حاول صورة أوضح. الثقة ${aiResult.confidence}%`
-                                      ) : (
-                                        currentVerificationIndex===2 ? (
-                                          aiResult.confidence >= 15 || verificationAttempts >= 1
-                                            ? `Tip: Get closer, good light, open eyes wide. Confidence ${aiResult.confidence}% - You can confirm anyway ✓`
-                                            : `Tip: Get closer, good light, open eyes wide. Confidence ${aiResult.confidence}% - Try again`
-                                        ) : `Tip: Try clearer photo. Confidence ${aiResult.confidence}%`
-                                      )}
-                                    </p>
-                                    {currentVerificationIndex===2 && (
-                                      <p className="text-[8px] text-white/50 mt-1 text-center">
-                                        {language === "ar" ? `محاولات: ${verificationAttempts} | الذكاء محسن ليقبل الوجه بسهولة` : `Attempts: ${verificationAttempts} | AI improved for face`}
-                                      </p>
+                                {aiResult && !aiResult.valid && aiResult.checks.length > 0 && (
+                                  <div className="mt-2 p-2.5 rounded-xl bg-black/40 border border-white/10 space-y-2">
+                                    <div className="grid grid-cols-2 gap-1">
+                                      {aiResult.checks.map((c) => (
+                                        <div key={c.id} className={`flex items-center gap-1 px-1.5 py-1 rounded-lg text-[8px] font-bold ${c.passed ? "bg-emerald-500/15 text-emerald-300" : "bg-red-500/15 text-red-300"}`}>
+                                          <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[8px] shrink-0 ${c.passed ? "bg-emerald-500 text-black" : "bg-red-500 text-white"}`}>
+                                            {c.passed ? "✓" : "✕"}
+                                          </span>
+                                          {tr("cl_" + c.id)}
+                                        </div>
+                                      ))}
+                                    </div>
+                                    {aiResult.tips.length > 0 && (
+                                      <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                                        {aiResult.tips.map((tip) => (
+                                          <p key={tip} className="text-[9px] text-amber-200 leading-relaxed">💡 {tr(tip)}</p>
+                                        ))}
+                                      </div>
                                     )}
+                                    <p className="text-[8px] text-white/50 text-center">
+                                      {t.aiConfidence}: {aiResult.confidence}% • {tr("attemptsLabel")}: {verificationAttempts}
+                                      {(aiResult.confidence >= 30 || verificationAttempts >= 2) && ` • ${tr("canConfirmAnyway")}`}
+                                    </p>
                                   </div>
                                 )}
                               </div>
