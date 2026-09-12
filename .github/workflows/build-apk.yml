@@ -55,8 +55,10 @@ jobs:
           fi
 
       - name: Build release APK
-        run: gradle -p android assembleRelease --no-daemon --stacktrace 2>&1 | tee /tmp/gradle.log
-        continue-on-error: false
+        shell: bash
+        run: |
+          set -o pipefail
+          gradle -p android assembleRelease --no-daemon --stacktrace 2>&1 | tee /tmp/gradle.log
 
       - name: On failure, push build log to repo
         if: failure()
