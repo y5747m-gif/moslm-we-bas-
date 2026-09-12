@@ -8,6 +8,7 @@ import android.app.NotificationManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.database.Cursor;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
@@ -189,8 +190,10 @@ public class MainActivity extends Activity {
         statValue = label("", 12, getColor(R.color.text_dim), false, 6);
         statValue.setGravity(Gravity.CENTER);
         root.addView(statValue);
-        root.addView(label("يعمل التطبيق بلا إنترنت نهائيًا · بياناتك لا تغادر هاتفك", 12,
-                getColor(R.color.text_dim), false, 0)).setGravity? no — set on label();
+        TextView foot = label("يعمل التطبيق بلا إنترنت نهائيًا · بياناتك لا تغادر هاتفك", 12,
+                getColor(R.color.text_dim), false, 0);
+        foot.setGravity(Gravity.CENTER);
+        root.addView(foot);
 
         scroll.addView(root);
         setContentView(scroll);
@@ -311,7 +314,6 @@ public class MainActivity extends Activity {
         methodValue.setText(Prefs.METHODS[p.methodIndex()][0]);
         int mb = p.minutesBefore();
         minutesValue.setText(mb == 0 ? getString(R.string.minutes_at)
-                : getString(R.string.btn_snooze) == null ? "" // لا يحدث أبدًا
                 : "قبل الفجر بـ " + mb + " دقيقة");
         String s = p.soundUri();
         if (s.isEmpty()) soundValue.setText(R.string.sound_default);
@@ -367,8 +369,6 @@ public class MainActivity extends Activity {
                 == PackageManager.PERMISSION_GRANTED;
     }
 
-    private boolean canFull掳Screen() { return canFullScreen(); }
-
     private boolean canFullScreen() {
         if (Build.VERSION.SDK_INT < 34) return true;
         NotificationManager nm = getSystemService(NotificationManager.class);
@@ -402,7 +402,6 @@ public class MainActivity extends Activity {
                 batt ? null : () -> requestBatteryException()));
 
         // الموقع
-        boolean loc = hasLocationPermission() && p.cityIndex() < 0;
         permsBox.addView(permRow(getString(R.string.perm_loc_title),
                 getString(R.string.perm_loc_desc), p.cityIndex() < 0,
                 () -> {
@@ -752,8 +751,5 @@ public class MainActivity extends Activity {
         } catch (Exception ignored) {
         }
         return "أذان مخصص";
-    }
-}
-ان مخصص";
     }
 }
