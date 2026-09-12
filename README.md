@@ -52,7 +52,7 @@ npm run dev        # موقع الويب
 npm run build      # بناء الويب للإنتاج
 ```
 
-## بناء نسخة الأندرويد محلياً (يحتاج Android SDK + JDK 17)
+## بناء نسخة الأندرويد محلياً (يحتاج Android SDK مع API 36 + JDK 21)
 
 ```bash
 npm run build:apk      # تصدير ثابت + مزامنة Capacitor
