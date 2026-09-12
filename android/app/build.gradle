@@ -1,8 +1,8 @@
-def keystoreFile = rootProject.file('keystore/fajr.keystore')
-
 plugins {
     id 'com.android.application'
 }
+
+def keystoreFile = rootProject.file('keystore/fajr.keystore')
 
 android {
     namespace 'com.fajr.wake'
