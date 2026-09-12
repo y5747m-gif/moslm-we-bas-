@@ -1,0 +1,46 @@
+def keystoreFile = rootProject.file('keystore/fajr.keystore')
+
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.fajr.wake'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.fajr.wake"
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+    }
+
+    signingConfigs {
+        release {
+            if (keystoreFile.exists()) {
+                storeFile keystoreFile
+                storePassword "fajr2026"
+                keyAlias "fajr"
+                keyPassword "fajr2026"
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            if (keystoreFile.exists()) {
+                signingConfig signingConfigs.release
+            }
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+}
+
+dependencies {
+}

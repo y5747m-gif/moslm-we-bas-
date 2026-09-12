@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">إيقاظ الفجر</string>
+
+    <!-- قناة الإشعارات -->
+    <string name="channel_name">منبه الفجر</string>
+    <string name="channel_desc">تنبيهات منبه صلاة الفجر</string>
+
+    <!-- إشعار المنبه -->
+    <string name="notif_title">حان وقت صلاة الفجر 🕌</string>
+    <string name="notif_text">انقر لإيقاف المنبه — الصلاة خير من النوم</string>
+    <string name="notif_backup_title">منبه احتياطي — صلاة الفجر 🕌</string>
+
+    <!-- الحالة -->
+    <string name="status_enabled">المنبه مفعّل</string>
+    <string name="status_disabled">المنبه غير مفعّل</string>
+    <string name="next_fajr_in">الفجر القادم</string>
+    <string name="remaining">الباقي</string>
+
+    <!-- الأزرار -->
+    <string name="btn_enable">تفعيل منبه الفجر اليومي</string>
+    <string name="btn_disable">إيقاف المنبه</string>
+
+    <!-- الإعدادات -->
+    <string name="sec_settings">الإعدادات</string>
+    <string name="row_city">المدينة</string>
+    <string name="row_method">طريقة حساب الفجر</string>
+    <string name="row_minutes">التنبيه قبل الأذان</string>
+    <string name="row_sound">صوت التنبيه</string>
+    <string name="row_backup">منبه احتياطي بعد ١٠ دقائق</string>
+    <string name="dialog_city_title">اختر مدينتك</string>
+    <string name="dialog_method_title">طريقة حساب وقت الفجر</string>
+    <string name="dialog_minutes_title">كم دقيقة قبل الفجر يبدأ التنبيه؟</string>
+    <string name="dialog_sound_title">صوت المنبه</string>
+    <string name="sound_default">نغمة افتراضية (يمكن استبدالها بأذان)</string>
+    <string name="sound_pick">اختيار ملف أذان من الهاتف</string>
+    <string name="sound_none">اهتزاز فقط</string>
+    <string name="btn_test_sound">تجربة الصوت</string>
+    <string name="btn_test_stop">إيقاف التجربة</string>
+    <string name="minutes_at">عند الأذان مباشرة</string>
+
+    <!-- الصلاحيات -->
+    <string name="sec_perms">الصلاحيات — أنت من يمنحها</string>
+    <string name="sec_perms_hint">التطبيق لا يطلب أي إذن دون موافقتك، ولا يتصل بالإنترنت إطلاقًا.</string>
+    <string name="perm_notif_title">الإشعارات</string>
+    <string name="perm_notif_desc">لإظهار تنبيه الفجر (مطلوب)</string>
+    <string name="perm_fsi_title">الظهور فوق شاشة القفل</string>
+    <string name="perm_fsi_desc">لعرض شاشة المنبه كاملةً عند القفل (موصى به)</string>
+    <string name="perm_batt_title">تجاهل تحسين البطارية</string>
+    <string name="perm_batt_desc">حتى لا يؤخر النظام المنبه في وضع الاستعداد (موصى به)</string>
+    <string name="perm_loc_title">تحديد الموقع تلقائيًا</string>
+    <string name="perm_loc_desc">اختياري — لحساب وقت الفجر في موقعك، ولا يُرسل لأي جهة</string>
+    <string name="perm_granted">ممنوح ✓</string>
+    <string name="perm_not_granted">غير ممنوح</string>
+    <string name="btn_grant">منح</string>
+    <string name="btn_locate">تحديد موقعي</string>
+    <string name="loc_found">تم تحديد موقعك</string>
+    <string name="loc_me">موقعي (GPS)</string>
+    <string name="loc_failed">تعذر تحديد الموقع — تأكد من تشغيل خدمة الموقع أو اختر مدينتك يدويًا</string>
+
+    <!-- شاشة المنبه -->
+    <string name="alarm_title">حان وقت صلاة الفجر</string>
+    <string name="alarm_sub">قُمْ للصلاة — الصلاة خير من النوم</string>
+    <string name="alarm_verse">﴿إِنَّ الصَّلَاةَ كَانَتْ عَلَى الْمُؤْمِنِينَ كِتَابًا مَوْقُوتًا﴾</string>
+    <string name="btn_stop">أوقف المنبه</string>
+    <string name="btn_snooze">غفوة ٥ دقائق</string>
+    <string name="snooze_left">متبقٍ لك %d من الغفوات</string>
+    <string name="backup_tag">منبه احتياطي</string>
+
+    <!-- رسائل -->
+    <string name="toast_enabled">تم تفعيل المنبه — الفجر %s</string>
+    <string name="toast_disabled">تم إيقاف المنبه</string>
+    <string name="toast_need_notif">امنح إذن الإشعارات أولًا ليصل التنبيه</string>
+    <string name="toast_no_fajr">تعذر حساب وقت الفجر — تحقق من المدينة</string>
+    <string name="sound_set">تم تعيين الصوت</string>
+    <string name="sound_reset">تمت العودة للنغمة الافتراضية</string>
+
+    <!-- متفرقات -->
+    <string name="stat_wakes">إجمالي مرات إيقاظك: %d</string>
+    <string name="countdown_none">فعِّل المنبه ليظهر موعد الفجر القادم</string>
+    <string name="no_alarm_today">—</string>
+    <string name="cancel">إلغاء</string>
+    <string name="save">حفظ</string>
+    <string name="perm_notif_ok">تم منح إذن الإشعارات ✓</string>
+    <string name="toast_test">تجربة الصوت — استخدم زر الإيقاف في النافذة</string>
+    <string name="backup_on">مفعّل ✓</string>
+    <string name="backup_off">معطّل</string>
+</resources>

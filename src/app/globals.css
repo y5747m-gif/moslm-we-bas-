@@ -1,0 +1,59 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #0a2e2b;
+  --bg-soft: #0e3a36;
+  --card: #123f3a;
+  --stroke: #1d544e;
+  --accent: #e8c468;
+  --accent-dark: #c9a24b;
+  --text: #f5f1e6;
+  --dim: #a8c0bb;
+  --green: #7bd389;
+  --danger: #e07a5f;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Segoe UI", Tahoma, "Noto Naskh Arabic", "Geeza Pro", Arial,
+    sans-serif;
+  line-height: 1.9;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--stroke);
+  border-radius: 1.25rem;
+}
+
+.gold-btn {
+  background: linear-gradient(135deg, var(--accent), var(--accent-dark));
+  color: #082724;
+  font-weight: 800;
+  border-radius: 999px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: 0 10px 30px rgba(232, 196, 104, 0.25);
+}
+
+.gold-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 36px rgba(232, 196, 104, 0.4);
+}
+
+.qr-box {
+  background: #f5f1e6;
+  border-radius: 1rem;
+  padding: 0.75rem;
+}
+
+.star-divider {
+  color: var(--accent);
+  letter-spacing: 1rem;
+  text-align: center;
+  opacity: 0.7;
+}

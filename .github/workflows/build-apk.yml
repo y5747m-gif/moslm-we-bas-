@@ -1,0 +1,70 @@
+name: Build APK 📱
+
+on:
+  push:
+    branches: ["main", "arena/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Ensure signing keystore (persisted in repo)
+        run: |
+          mkdir -p android/keystore
+          if [ ! -f android/keystore/fajr.keystore ]; then
+            keytool -genkeypair -v \
+              -keystore android/keystore/fajr.keystore \
+              -alias fajr -keyalg RSA -keysize 2048 -validity 10950 \
+              -storepass fajr2026 -keypass fajr2026 \
+              -dname "CN=Iqaz Alfajr, OU=Fajr, O=FajrApp, L=Makkah, C=SA"
+          fi
+
+      - name: Build release APK
+        run: gradle -p android assembleRelease --no-daemon --stacktrace
+
+      - name: Verify APK signature
+        run: |
+          BT="$ANDROID_HOME/build-tools/34.0.0"
+          "$BT/apksigner" verify --print-certs android/app/build/outputs/apk/release/app-release.apk
+
+      - name: Copy APK into public hosting folder
+        run: |
+          mkdir -p public/apk
+          cp android/app/build/outputs/apk/release/app-release.apk public/apk/iqaz-alfajr.apk
+          ls -la public/apk
+
+      - name: Commit APK (and keystore on first run) back to the branch
+        run: |
+          git config user.name "arena-build-bot"
+          git config user.email "bot@arena.ai"
+          git add public/apk android/keystore
+          if git diff --cached --quiet; then
+            echo "Nothing to commit"
+          else
+            git commit -m "build: تحديث ملف APK [skip ci]"
+          fi
+          git push "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" "HEAD:${{ github.ref_name }}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: iqaz-alfajr-apk
+          path: public/apk/iqaz-alfajr.apk
