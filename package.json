@@ -14,7 +14,8 @@
     "cap:open": "npx cap open android",
     "build:apk": "CAPACITOR_EXPORT=true next build && rm -f out/downloads/hatsally.apk && npx cap sync android",
     "apk:assemble": "cd android && ./gradlew assembleDebug",
-    "test:vision": "npx tsx scripts/vision-test.ts"
+    "test:vision": "npx tsx scripts/vision-test.ts",
+    "test:alarm": "npx tsx scripts/schedule-test.ts"
   },
   "dependencies": {
     "@capacitor-community/text-to-speech": "^8.0.2",

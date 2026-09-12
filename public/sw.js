@@ -1,6 +1,6 @@
 // HatSally - هتصلي يعني هتصلي - Service Worker v6 Real Vision + Face Models
 // Features: Auto update, persistent alarm, real faucet/mat verification, offline face models
-const CACHE_NAME = "hatsally-v7-permissions";
+const CACHE_NAME = "hatsally-v8-alarmfix";
 const APP_VERSION = "5.1.0-real-vision";
 const PRECACHE_URLS = [
   "/",
@@ -427,6 +427,10 @@ self.addEventListener("notificationclick", (event) => {
       clients.matchAll({ type: "window" }).then((clientList) => {
         for (const client of clientList) {
           if (client.url.includes(self.location.origin) && "focus" in client) {
+            // الضغط على جسم تنبيه المنبه يوقظ الصفحة رنيناً (وليس مجرد تركيز صامت)
+            if (data && data.persistent === true) {
+              client.postMessage({ type: "ALARM_TRIGGERED", name: data.name, stage: data.stage || "ringing", version: APP_VERSION });
+            }
             return client.focus();
           }
         }

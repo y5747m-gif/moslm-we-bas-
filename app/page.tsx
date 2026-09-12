@@ -40,6 +40,7 @@ import {
   Heart,
 } from "lucide-react";
 import { verifyCapture, warmUpVerification, type VerifyTask } from "../lib/verify";
+import { decideAlarm, computeNextRing, getTodayKey } from "../lib/schedule";
 import { checkCritical, enforceRinging, relaxAfterRinging, openNativeAppOr } from "../lib/permissions";
 import PermissionsPanel from "./components/PermissionsPanel";
 import QRCode from "react-qr-code";
@@ -55,6 +56,7 @@ import {
   notifyNative,
   requestNativePermissions,
   guardBackButtonWhileRinging,
+  onNativeAlarmTap,
   getApkInfo,
   downloadApk,
   triggerBlobDownload,
@@ -138,6 +140,14 @@ const translations = {
     allowCamera: "السماح بالكاميرا",
     cameraDenied: "تم رفض صلاحية الكاميرا",
     cameraDeniedDesc: "الرجاء السماح بالكاميرا من إعدادات المتصفح",
+    cameraDeniedHint: "إن كنت رفضت سابقاً: اسمح للكاميرا من إعدادات المتصفح أو التطبيق ثم أعد المحاولة",
+    cameraBusy: "الكاميرا مشغولة",
+    cameraBusyDesc: "تطبيق آخر يستخدم الكاميرا - أغلقه ثم أعد المحاولة",
+    cameraMissing: "لا توجد كاميرا",
+    cameraMissingDesc: "تعذّر العثور على كاميرا - جرّب الرفع من المعرض",
+    cameraRetry: "إعادة المحاولة",
+    nextRing: "الرنين القادم",
+    nextRingNone: "لا رنين مجدول - راجع الأيام والمدة",
     tapToOpenCamera: "اضغط لفتح الكاميرا",
     verificationSoundOn: "🔊 الصوت مستمر حتى إكمال التحقق",
     verificationProgress: "التحقق مستمر - الصوت لن يتوقف",
@@ -477,6 +487,14 @@ const translations = {
     allowCamera: "Allow Camera",
     cameraDenied: "Camera permission denied",
     cameraDeniedDesc: "Please allow camera from browser settings",
+    cameraDeniedHint: "If you denied before: allow camera in browser/app settings then retry",
+    cameraBusy: "Camera busy",
+    cameraBusyDesc: "Another app is using the camera - close it and retry",
+    cameraMissing: "No camera found",
+    cameraMissingDesc: "Could not find a camera - try uploading from gallery",
+    cameraRetry: "Retry",
+    nextRing: "Next ring",
+    nextRingNone: "No ring scheduled - check days and duration",
     tapToOpenCamera: "Tap to open camera",
     verificationSoundOn: "🔊 Sound continues until verification complete",
     verificationProgress: "Verification in progress - sound won't stop",
@@ -778,6 +796,7 @@ export default function Page() {
   const [aiAnalyzing, setAiAnalyzing] = useState(false);
   const [aiResult, setAiResult] = useState<{ valid: boolean; confidence: number; message: string; checks: VisionCheck[]; tips: string[] } | null>(null);
   const [cameraPermissionError, setCameraPermissionError] = useState(false);
+  const [cameraErrorCode, setCameraErrorCode] = useState("");
   const [cameraStreamActive, setCameraStreamActive] = useState(false);
 
   // New: Days and Duration + Hard to close
@@ -1117,6 +1136,27 @@ export default function Page() {
     return () => clearInterval(interval);
   }, []);
 
+  // فتح قفل الصوت عند أي تفاعل: بدونه يرنّ المنبه صامتاً (سياسة المتصفح)
+  useEffect(() => {
+    const unlock = () => {
+      try {
+        const Ctor = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+        if (!audioContextRef.current && Ctor) audioContextRef.current = new Ctor();
+        if (audioContextRef.current && audioContextRef.current.state === "suspended") {
+          void audioContextRef.current.resume();
+        }
+      } catch {}
+    };
+    window.addEventListener("pointerdown", unlock);
+    window.addEventListener("keydown", unlock);
+    window.addEventListener("touchend", unlock);
+    return () => {
+      window.removeEventListener("pointerdown", unlock);
+      window.removeEventListener("keydown", unlock);
+      window.removeEventListener("touchend", unlock);
+    };
+  }, []);
+
   useEffect(() => {
     return () => {
       stopAllSounds();
@@ -1321,6 +1361,7 @@ export default function Page() {
       audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
     }
     const ctx = audioContextRef.current;
+    if (ctx.state === "suspended") void ctx.resume();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = "sine";
@@ -1338,6 +1379,7 @@ export default function Page() {
       audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
     }
     const ctx = audioContextRef.current;
+    if (ctx.state === "suspended") void ctx.resume();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = "sine";
@@ -1363,6 +1405,7 @@ export default function Page() {
       audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
     }
     const ctx = audioContextRef.current;
+    if (ctx.state === "suspended") void ctx.resume();
     for (let i = 0; i < 3; i++) {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -1394,6 +1437,7 @@ export default function Page() {
       audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
     }
     const ctx = audioContextRef.current;
+    if (ctx.state === "suspended") void ctx.resume();
     for (let i = 0; i < 5; i++) {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -1431,34 +1475,10 @@ export default function Page() {
 
   useEffect(() => {
     if (!isAlarmActive || alarmStage !== "idle") return;
-    const checkAlarm = () => {
-      const now = new Date();
-      // Check expiry
-      if (alarmStartDate && durationDays !== 'forever') {
-        const start = new Date(alarmStartDate);
-        const diffDays = Math.floor((now.getTime() - start.getTime()) / (1000*60*60*24));
-        const limit = typeof durationDays === 'number' ? durationDays : 30;
-        if (diffDays >= limit) {
-          setIsAlarmActive(false);
-          localStorage.setItem("hatsally-alarm-active", "false");
-          void cancelNativeAlarm();
-          return;
-        }
-      }
-      // Check selected days: JS getDay 0=Sun ... 6=Sat - our selectedDays matches same
-      const today = now.getDay();
-      if (selectedDays.length > 0 && !selectedDays.includes(today)) {
-        return; // not today
-      }
-      const [alarmH, alarmM] = alarmTime.split(":").map(Number);
-      const nowH = now.getHours();
-      const nowM = now.getMinutes();
-      if (nowH === alarmH && nowM === alarmM && now.getSeconds() === 0) {
-        triggerAlarm();
-      }
-    };
-    const interval = setInterval(checkAlarm, 1000);
+    runAlarmCheck(); // فحص فوري عند التفعيل (يلحق بالموعد إن حان)
+    const interval = setInterval(runAlarmCheck, 1000);
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAlarmActive, alarmStage, alarmTime, selectedDays, durationDays, alarmStartDate]);
 
   useEffect(() => {
@@ -1492,7 +1512,18 @@ export default function Page() {
     return () => clearInterval(interval);
   }, [alarmStage, fastMode, userName, playAnnoyingSounds, playExtremeSounds, speakWakeUp]);
 
-  const triggerAlarm = useCallback(() => {
+  const triggerAlarm = useCallback((opts?: { demo?: boolean }) => {
+    // علّم اليوم كرنّ (مرة واحدة فقط) - زر التجربة لا يُعلَّم حتى لا يلغي الرنين الحقيقي
+    if (!opts?.demo) {
+      try { localStorage.setItem("hatsally-last-fired", getTodayKey(new Date())); } catch {}
+    }
+    // فتح قفل الصوت: المتصفح يعلّق AudioContext بدون تفاعل سابق فيرنّ صامتاً!
+    try {
+      if (!audioContextRef.current) {
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
+      if (audioContextRef.current.state === "suspended") void audioContextRef.current.resume();
+    } catch {}
     setAlarmStage("ringing");
     setTimeSinceRinging(0);
     // تسخين محرك كشف الوجه مبكراً حتى يكون جاهزاً عند التحقق
@@ -1513,6 +1544,77 @@ export default function Page() {
     }
   }, [userName, speakWakeUp, playGentleTone]);
 
+  // نص الرنين القادم + العد التنازلي الحي (يُعاد حسابه كل ثانية مع عدّاد currentTime)
+  const renderNextRing = () => {
+    const next = computeNextRing(new Date(currentTime), { time: alarmTime, days: selectedDays, startDate: alarmStartDate, durationDays });
+    if (!next) return <span className="opacity-70">{t.nextRingNone}</span>;
+    const diffMs = Math.max(0, next.getTime() - currentTime.getTime());
+    const h = Math.floor(diffMs / 3600000);
+    const m = Math.floor((diffMs % 3600000) / 60000);
+    const s = Math.floor((diffMs % 60000) / 1000);
+    const weekday = next.toLocaleDateString(language === "ar" ? "ar-EG" : "en-US", { weekday: "long" });
+    const hh = String(next.getHours()).padStart(2, "0");
+    const mm = String(next.getMinutes()).padStart(2, "0");
+    const countdown = language === "ar" ? `بعد ${h}س ${m}د ${s}ث` : `in ${h}h ${m}m ${s}s`;
+    return <span>{t.nextRing}: <span className="font-bold">{weekday} {hh}:{mm}</span> <span className="font-mono">({countdown})</span></span>;
+  };
+
+  // الفحص الموحد للموعد: العدّاد الدوري + اللحاق عند الفتح/الاستئناف (الضغط على التنبيه وهو مغلق)
+  const runAlarmCheck = useCallback(() => {
+    if (!isAlarmActive || alarmStage !== "idle") return;
+    let lastFired: string | null = null;
+    try { lastFired = localStorage.getItem("hatsally-last-fired"); } catch {}
+    const decision = decideAlarm(new Date(), {
+      time: alarmTime,
+      days: selectedDays,
+      startDate: alarmStartDate,
+      durationDays,
+      lastFiredKey: lastFired,
+    });
+    if (decision.action === "ring") {
+      console.log("⏰ Time reached - ringing!");
+      triggerAlarm();
+    } else if (decision.action === "missed") {
+      // فات أكثر من المهلة: علّم اليوم حتى لا يتكرر
+      try { localStorage.setItem("hatsally-last-fired", getTodayKey(new Date())); } catch {}
+    } else if (decision.action === "expired") {
+      setIsAlarmActive(false);
+      try { localStorage.setItem("hatsally-alarm-active", "false"); } catch {}
+      void cancelNativeAlarm();
+    }
+  }, [isAlarmActive, alarmStage, alarmTime, selectedDays, durationDays, alarmStartDate, triggerAlarm]);
+
+  // اللحاق بالرنين عند فتح التطبيق أو العودة إليه أو عودة الإنترنت
+  useEffect(() => {
+    runAlarmCheck();
+    const onReturn = () => { if (!document.hidden) runAlarmCheck(); };
+    document.addEventListener("visibilitychange", onReturn);
+    window.addEventListener("focus", onReturn);
+    window.addEventListener("online", onReturn);
+    return () => {
+      document.removeEventListener("visibilitychange", onReturn);
+      window.removeEventListener("focus", onReturn);
+      window.removeEventListener("online", onReturn);
+    };
+  }, [runAlarmCheck]);
+
+  // مرجع دائم لآخر نسخة من triggerAlarm (لمستمع التنبيه الأصلي)
+  const triggerAlarmRef = useRef(triggerAlarm);
+  triggerAlarmRef.current = triggerAlarm;
+
+  // الضغط على تنبيه المنبه الأصلي يبدأ الرنين فوراً (التطبيق كان مغلقاً أو في الخلفية)
+  useEffect(() => {
+    if (!isNativeApp) return;
+    let off: (() => void) | null = null;
+    void onNativeAlarmTap(() => {
+      if (alarmStageRef.current === "idle") {
+        console.log("⏰ Ringing from native notification tap");
+        triggerAlarmRef.current();
+      }
+    }).then((fn) => { off = fn; });
+    return () => { if (off) off(); };
+  }, [isNativeApp]);
+
   // Listen to SW messages for persistent alarm + auto-update - must be after triggerAlarm
   useEffect(() => {
     if ("serviceWorker" in navigator) {
@@ -1521,6 +1623,12 @@ export default function Page() {
         if (!data) return;
         if (data.type === "ALARM_TRIGGERED") {
           console.log("🔔 SW triggered alarm", data);
+          if (alarmStage === "idle") {
+            triggerAlarm();
+          }
+        }
+        if (data.type === "NOTIFICATION_WAKE") {
+          console.log("🔔 SW notification tapped - waking", data);
           if (alarmStage === "idle") {
             triggerAlarm();
           }
@@ -1629,6 +1737,8 @@ export default function Page() {
     localStorage.setItem("hatsally-alarm-duration", durationDays === 'forever' ? 'forever' : String(durationDays));
     localStorage.setItem("hatsally-alarm-start-date", startDate);
     localStorage.setItem("hatsally-alarm-active", "true");
+    // تسليح جديد = يوم جديد: امسح علامة الرنين السابق حتى يرنّ اليوم لو أعيد الضبط
+    try { localStorage.removeItem("hatsally-last-fired"); } catch {}
     setAlarmStartDate(startDate);
     setSnoozeCount(0);
     setIsAlarmActive(true);
@@ -1679,6 +1789,8 @@ export default function Page() {
     setCurrentVerificationIndex(0);
     setVerificationAttempts(0);
     setAiResult(null);
+    // فتح الكاميرا تلقائياً للمهمة الأولى (داخل سياق ضغطة المستخدم فيُقبل طلب الصلاحية)
+    void openCamera(verificationTasks[0]?.id);
     // بدء نداء التحقق بصوت رجل مستمر
     if (userName) {
       speakVerification("water", userName);
@@ -1895,21 +2007,56 @@ export default function Page() {
     }
   };
 
+  // إلصاق البث بعنصر الفيديو عند ظهوره (العنصر غير موجود لحظة فتح الكاميرا - بدونه شاشة سوداء!)
+  useEffect(() => {
+    if (isCameraOpen && streamRef.current && videoRef.current && videoRef.current.srcObject !== streamRef.current) {
+      videoRef.current.srcObject = streamRef.current;
+      videoRef.current.play().catch(() => {});
+    }
+  }, [isCameraOpen]);
+
   const openCamera = async (taskId?: VerificationId) => {
     const currentTaskId = taskId || verificationTasks[currentVerificationIndex]?.id || "water";
     setCameraPermissionError(false);
+    setCameraErrorCode("");
     setAiResult(null);
+    // أوقف أي بث قديم أولاً وإلا رفض الهاتف: الكاميرا مشغولة (خصوصاً عند تبديل أمامية/خلفية)
     try {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((tr) => { try { tr.stop(); } catch {} });
+        streamRef.current = null;
+      }
+      if (videoRef.current) videoRef.current.srcObject = null;
+    } catch {}
+    const fail = (code: string) => {
+      setCameraErrorCode(code);
+      setCameraPermissionError(true);
+      setCameraStreamActive(false);
+    };
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        fail("unsupported");
+        return;
+      }
       // اختيار الكاميرا المناسبة: أمامية للوجه، خلفية للباقي
       const facingMode = currentTaskId === "face" ? "user" : "environment";
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { 
-          facingMode: facingMode,
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        },
-        audio: false,
-      });
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: facingMode,
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          },
+          audio: false,
+        });
+      } catch (firstErr: unknown) {
+        const n = (firstErr as { name?: string })?.name || "";
+        // رفض الصلاحية: لا فائدة من المحاولة التلقائية - المستخدم يجب أن يسمح
+        if (n === "NotAllowedError" || n === "PermissionDeniedError" || n === "SecurityError") throw firstErr;
+        // خطأ قيود/جهاز: جرّب بدون شروط
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      }
       streamRef.current = stream;
       setCameraStreamActive(true);
       if (videoRef.current) {
@@ -1920,27 +2067,13 @@ export default function Page() {
       setCapturedImage(null);
       // اهتزاز للتأكيد
       if ("vibrate" in navigator) navigator.vibrate(50);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Camera error:", err);
-      setCameraPermissionError(true);
-      setCameraStreamActive(false);
-      if (err?.name === "NotAllowedError" || err?.name === "PermissionDeniedError") {
-        // permission denied
-      } else {
-        // try fallback without facingMode
-        try {
-          const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-          streamRef.current = fallbackStream;
-          if (videoRef.current) {
-            videoRef.current.srcObject = fallbackStream;
-            await videoRef.current.play().catch(() => {});
-          }
-          setIsCameraOpen(true);
-          setCameraPermissionError(false);
-          setCameraStreamActive(true);
-          return;
-        } catch {}
-      }
+      const n = (err as { name?: string })?.name || "";
+      if (n === "NotAllowedError" || n === "PermissionDeniedError" || n === "SecurityError") fail("denied");
+      else if (n === "NotFoundError" || n === "DevicesNotFoundError" || n === "OverconstrainedError") fail("missing");
+      else if (n === "NotReadableError" || n === "TrackStartError" || n === "AbortError") fail("busy");
+      else fail("unknown");
     }
   };
 
@@ -2043,6 +2176,8 @@ export default function Page() {
             playGentleToneForVerification();
           }, 10000) as any;
         }
+        // فتح الكاميرا تلقائياً للخطوة التالية (بالعدسة المناسبة: أمامية للوجه/خلفية للباقي)
+        void openCamera(nextTaskId as VerificationId);
       } else {
         // اكتملت كل المهام - الآن فقط نوقف الصوت
         if (verificationSpeechRef.current) {
@@ -2059,16 +2194,11 @@ export default function Page() {
         // انتهى الفرض: إرجاع الصوت وتحرير قفل الشاشة
         void relaxAfterRinging();
         setAlarmStage("completed");
-        // For forever alarms, keep active but idle next day; for limited, check expiry
-        if (durationDays === 'forever') {
-          setIsAlarmActive(true);
-          localStorage.setItem("hatsally-alarm-active", "true");
-          void scheduleNativeAlarm({ time: alarmTime, name: userName, days: selectedDays, lang: language });
-        } else {
-          setIsAlarmActive(false);
-          localStorage.setItem("hatsally-alarm-active", "false");
-          void cancelNativeAlarm();
-        }
+        // بعد الاكتمال: يبقى المنبه مسلحاً دائماً - الفحص الدوري هو من ينهي المدد المحدودة عند انتهائها
+        // (الخلل القديم كان يقتل منبه 7/14/30 يوم بعد أول رنين!)
+        setIsAlarmActive(true);
+        localStorage.setItem("hatsally-alarm-active", "true");
+        void scheduleNativeAlarm({ time: alarmTime, name: userName, days: selectedDays, lang: language });
         if (navigator.serviceWorker?.controller) {
           navigator.serviceWorker?.controller.postMessage({ type: "ALARM_COMPLETED", name: userName });
         }
@@ -2761,7 +2891,7 @@ export default function Page() {
                 <button
                   onClick={() => {
                     if (!userName) setUserName(language === "ar" ? "أحمد" : "Ahmed");
-                    setTimeout(() => triggerAlarm(), 300);
+                    setTimeout(() => triggerAlarm({ demo: true }), 300);
                   }}
                   className={`h-12 rounded-2xl ${isDark ? "bg-white/10" : "bg-zinc-900 text-white"} font-bold text-sm hover:bg-white/15 transition flex items-center justify-center gap-2`}
                 >
@@ -2777,9 +2907,12 @@ export default function Page() {
               {isAlarmActive && (
                 <div className={`p-4 rounded-2xl ${isDark ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-200" : "bg-emerald-50 border-emerald-200 text-emerald-700"} border flex items-center gap-3`}>
                   <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
-                  <p className="text-sm">
-                    {t.alarmSet} <span className="font-mono font-bold">{alarmTime}</span> - {t.willWake} {userName || (language === "ar" ? "أحمد" : "Ahmed")}
-                  </p>
+                  <div className="flex-1">
+                    <p className="text-sm">
+                      {t.alarmSet} <span className="font-mono font-bold">{alarmTime}</span> - {t.willWake} {userName || (language === "ar" ? "أحمد" : "Ahmed")}
+                    </p>
+                    <p className="text-xs mt-1 opacity-90">⏱ {renderNextRing()}</p>
+                  </div>
                 </div>
               )}
 
@@ -3012,12 +3145,19 @@ export default function Page() {
                                   <Camera className="w-6 h-6 text-red-400" />
                                 </div>
                                 <div>
-                                  <p className="text-xs font-bold text-red-200">{t.cameraDenied}</p>
-                                  <p className="text-[10px] text-white/50 mt-1">{t.cameraDeniedDesc}</p>
+                                  <p className="text-xs font-bold text-red-200">
+                                    {cameraErrorCode === "busy" ? t.cameraBusy : cameraErrorCode === "missing" || cameraErrorCode === "unsupported" ? t.cameraMissing : t.cameraDenied}
+                                  </p>
+                                  <p className="text-[10px] text-white/50 mt-1">
+                                    {cameraErrorCode === "busy" ? t.cameraBusyDesc : cameraErrorCode === "missing" || cameraErrorCode === "unsupported" ? t.cameraMissingDesc : t.cameraDeniedDesc}
+                                  </p>
+                                  {(cameraErrorCode === "denied" || cameraErrorCode === "") && (
+                                    <p className="text-[9px] text-amber-300/80 mt-1.5 leading-relaxed">{t.cameraDeniedHint}</p>
+                                  )}
                                 </div>
                                 <button onClick={() => openCamera(verificationTasks[currentVerificationIndex]?.id)} className="px-4 py-2 rounded-full bg-red-500 text-white font-bold text-[11px] flex items-center gap-1.5">
                                   <Camera className="w-3.5 h-3.5" />
-                                  {t.allowCamera}
+                                  {cameraErrorCode === "denied" || cameraErrorCode === "" ? t.allowCamera : t.cameraRetry}
                                 </button>
                               </div>
                             ) : !isCameraOpen && !capturedImage ? (
@@ -3039,7 +3179,7 @@ export default function Page() {
                                 </button>
                                 <label className="text-[9px] text-emerald-400 underline cursor-pointer mt-1">
                                   {t.uploadFromGallery}
-                                  <input id={`file-input-${verificationTasks[currentVerificationIndex]?.id}`} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFileUpload} />
+                                  <input id={`file-input-${verificationTasks[currentVerificationIndex]?.id}`} type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
                                 </label>
                               </div>
                             ) : isCameraOpen && !capturedImage ? (

@@ -269,6 +269,39 @@ export async function notifyNative(
   }
 }
 
+/**
+ * الاستماع للضغط على تنبيه المنبه الأصلي.
+ * عند الضغط على التنبيه (والتطبيق مغلق أو في الخلفية) يُستدعى cb ليبدأ الرنين فوراً.
+ * يُرجع دالة إلغاء الاشتراك.
+ */
+export async function onNativeAlarmTap(
+  cb: (extra: Record<string, unknown>) => void
+): Promise<() => void> {
+  if (!isNativeApp()) return () => {};
+  try {
+    const { LocalNotifications } = await import(
+      "@capacitor/local-notifications"
+    );
+    const listener = await LocalNotifications.addListener(
+      "localNotificationActionPerformed",
+      (action) => {
+        try {
+          const extra = (action?.notification?.extra || {}) as Record<string, unknown>;
+          if (extra.type === "fajr-alarm") {
+            console.log("🔔 Native alarm notification tapped");
+            cb(extra);
+          }
+        } catch {
+          /* تجاهل */
+        }
+      }
+    );
+    return () => void listener.remove();
+  } catch {
+    return () => {};
+  }
+}
+
 /** منع زر الرجوع من إغلاق التطبيق أثناء رنين المنبه */
 export async function guardBackButtonWhileRinging(
   isRinging: () => boolean
