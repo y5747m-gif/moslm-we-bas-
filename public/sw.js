@@ -1,6 +1,6 @@
 // HatSally - هتصلي يعني هتصلي - Service Worker v6 Real Vision + Face Models
 // Features: Auto update, persistent alarm, real faucet/mat verification, offline face models
-const CACHE_NAME = "hatsally-v6-real-vision";
+const CACHE_NAME = "hatsally-v7-permissions";
 const APP_VERSION = "5.1.0-real-vision";
 const PRECACHE_URLS = [
   "/",

@@ -14,6 +14,8 @@ import {
   Moon,
   Zap,
   ShieldAlert,
+  ShieldCheck,
+  Loader2,
   Sparkles,
   Play,
   RotateCcw,
@@ -38,6 +40,9 @@ import {
   Heart,
 } from "lucide-react";
 import { verifyCapture, warmUpVerification, type VerifyTask } from "../lib/verify";
+import { checkCritical, enforceRinging, relaxAfterRinging, openNativeAppOr } from "../lib/permissions";
+import PermissionsPanel from "./components/PermissionsPanel";
+import QRCode from "react-qr-code";
 import type { VisionCheck } from "../lib/vision";
 import {
   isNativeApp as checkNativeApp,
@@ -226,6 +231,27 @@ const translations = {
     evenClosed: "حتى لو مغلق",
     alwaysNotify: "ينبه دائماً",
     scanToDownload: "امسح للتحميل",
+    openAppBtn: "افتح التطبيق إن كان مثبتاً",
+    permTitle: "أذونات المنبه",
+    permRecheck: "إعادة الفحص",
+    permRequired: "مطلوب",
+    permGrant: "سماح",
+    permOpenSettings: "الإعدادات",
+    permNote: "أنت من يمنح هذه الأذونات للبرنامج. المنبه لا يُفعَّل إلا بعد منح الأذونات المطلوبة حتى يوقظك الفجر بالقوة.",
+    perm_notifications: "الإشعارات",
+    perm_notificationsDesc: "لرنين المنبه حتى لو كان التطبيق مغلقاً",
+    perm_camera: "الكاميرا",
+    perm_cameraDesc: "للتحقق البصري: الصنبور والمصلاة والوجه",
+    perm_exactAlarm: "المنبه الدقيق",
+    perm_exactAlarmDesc: "للرنين في الموعد المضبوط تماماً (في التطبيق فقط)",
+    perm_battery: "تجاهل تحسين البطارية",
+    perm_batteryDesc: "حتى لا يقتل النظام المنبه أثناء نومك (في التطبيق فقط)",
+    perm_dnd: "تجاوز عدم الإزعاج",
+    perm_dndDesc: "للرنين بأقصى صوت حتى في الوضع الصامت (مستحسن)",
+    permWizardTitle: "امنح الأذونات أولاً 🔐",
+    permWizardDesc: "حتى يوقظك الفجر بالقوة، امنح البرنامج هذه الأذونات. أنت المتحكم - يمكنك سحبها من إعدادات الهاتف في أي وقت.",
+    permWizardLater: "لاحقاً",
+    permWizardActivate: "تم - فعّل المنبه",
     footerMade: "يثبت كتطبيق أصلي - يعمل بدون إنترنت",
     footerRights: "© 2025 هتصلي يعني هتصلي",
     footerWorld: "صُنع للمسلمين حول العالم",
@@ -544,6 +570,27 @@ const translations = {
     evenClosed: "Even closed",
     alwaysNotify: "Always alerts",
     scanToDownload: "Scan to download",
+    openAppBtn: "Open the app if installed",
+    permTitle: "Alarm permissions",
+    permRecheck: "Recheck",
+    permRequired: "Required",
+    permGrant: "Allow",
+    permOpenSettings: "Settings",
+    permNote: "You grant these permissions to the app. The alarm arms only after required permissions are granted, so Fajr wakes you up forcefully.",
+    perm_notifications: "Notifications",
+    perm_notificationsDesc: "To ring even when the app is closed",
+    perm_camera: "Camera",
+    perm_cameraDesc: "For visual verification: tap, mat and face",
+    perm_exactAlarm: "Exact alarm",
+    perm_exactAlarmDesc: "To ring at the exact set time (in-app only)",
+    perm_battery: "Ignore battery optimization",
+    perm_batteryDesc: "So the system never kills the alarm while you sleep (in-app only)",
+    perm_dnd: "Override Do Not Disturb",
+    perm_dndDesc: "To ring at max volume even in silent mode (recommended)",
+    permWizardTitle: "Grant permissions first 🔐",
+    permWizardDesc: "So Fajr wakes you up forcefully, grant the app these permissions. You're in control - revoke anytime from phone settings.",
+    permWizardLater: "Later",
+    permWizardActivate: "Done - arm the alarm",
     footerMade: "Installs as native app - Works offline",
     footerRights: "© 2025 HatSally - You WILL Pray",
     footerWorld: "Made for Muslims worldwide",
@@ -725,6 +772,8 @@ export default function Page() {
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [showDownloadModal, setShowDownloadModal] = useState(false);
+  const [showPermWizard, setShowPermWizard] = useState(false);
+  const [permChecking, setPermChecking] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [aiAnalyzing, setAiAnalyzing] = useState(false);
   const [aiResult, setAiResult] = useState<{ valid: boolean; confidence: number; message: string; checks: VisionCheck[]; tips: string[] } | null>(null);
@@ -1448,6 +1497,8 @@ export default function Page() {
     setTimeSinceRinging(0);
     // تسخين محرك كشف الوجه مبكراً حتى يكون جاهزاً عند التحقق
     warmUpVerification();
+    // فرض الاستيقاظ: صوت أقصى + شاشة مستيقظة فوق القفل
+    void enforceRinging();
     if (userName) speakWakeUp(userName, false);
     playGentleTone();
     speechIntervalRef.current = setInterval(() => {
@@ -1556,13 +1607,19 @@ export default function Page() {
     };
   }, [alarmStage, language, userName, t.cannotClose, speakWakeUp, isNativeApp]);
 
-  const handleSetAlarm = () => {
+  const handleSetAlarm = async () => {
     if (!userName.trim()) {
       alert(language === "ar" ? "الرجاء إدخال اسمك أولاً" : "Please enter your name first");
       return;
     }
     if (selectedDays.length === 0) {
       alert(language === "ar" ? "اختر يوماً واحداً على الأقل" : "Select at least one day");
+      return;
+    }
+    // المستخدم يمنح الموافقات أولاً - لا منبه بدون الأذونات الحرجة
+    const crit = await checkCritical();
+    if (!crit.ok) {
+      setShowPermWizard(true);
       return;
     }
     const startDate = new Date().toISOString();
@@ -1999,6 +2056,8 @@ export default function Page() {
         stopOscillatorsOnly();
         if ("speechSynthesis" in window) { try { window.speechSynthesis.cancel(); } catch {} }
         void stopNativeSpeech();
+        // انتهى الفرض: إرجاع الصوت وتحرير قفل الشاشة
+        void relaxAfterRinging();
         setAlarmStage("completed");
         // For forever alarms, keep active but idle next day; for limited, check expiry
         if (durationDays === 'forever') {
@@ -2048,6 +2107,7 @@ export default function Page() {
 
   const resetAlarm = () => {
     stopAllSounds();
+    void relaxAfterRinging();
     if (verificationSpeechRef.current) {
       clearInterval(verificationSpeechRef.current);
       verificationSpeechRef.current = null;
@@ -2710,6 +2770,10 @@ export default function Page() {
                 </button>
               </div>
 
+              <div className={`p-4 rounded-2xl border ${isDark ? "bg-white/5 border-white/10" : "bg-zinc-50 border-zinc-200"}`}>
+                <PermissionsPanel t={t as unknown as Record<string, string>} dark={isDark} rtl={isRTL} compact />
+              </div>
+
               {isAlarmActive && (
                 <div className={`p-4 rounded-2xl ${isDark ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-200" : "bg-emerald-50 border-emerald-200 text-emerald-700"} border flex items-center gap-3`}>
                   <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
@@ -3288,6 +3352,17 @@ export default function Page() {
                 </button>
               </div>
 
+              {/* فتح التطبيق المثبت من الموقع - أو تحميل APK إن لم يكن مثبتاً */}
+              {!isNativeApp && isAndroidDevice() && (
+                <button
+                  onClick={() => openNativeAppOr(() => void handleDownloadAPK())}
+                  className={`mt-4 w-full flex items-center justify-center gap-2 px-6 py-3 rounded-full ${glassClass} font-semibold text-sm hover:bg-white/10 transition`}
+                >
+                  <Smartphone className="w-4 h-4 text-emerald-500" />
+                  {t.openAppBtn}
+                </button>
+              )}
+
               <div className="mt-6 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex gap-2">
                 <Heart className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
                 <p className="text-xs text-emerald-700 dark:text-emerald-200 leading-relaxed">{t.duaSentence}</p>
@@ -3312,15 +3387,16 @@ export default function Page() {
               <div className="relative">
                 <div className="w-[200px] h-[200px] rounded-[1.5rem] bg-white p-4 shadow-2xl border border-zinc-200">
                   <div className="w-full h-full rounded-xl bg-black flex items-center justify-center relative overflow-hidden">
-                    <div className="grid grid-cols-12 gap-[2px] w-full h-full p-2">
-                      {[...Array(144)].map((_, i) => (
-                        <div key={i} className={`rounded-[1px] ${Math.random() > 0.5 ? "bg-white" : "bg-transparent"}`} />
-                      ))}
-                    </div>
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
-                        <Moon className="w-7 h-7 text-black" />
-                      </div>
+                    <div className="w-full h-full p-2 bg-white flex items-center justify-center">
+                      {typeof window !== "undefined" && (
+                        <QRCode
+                          value={window.location.href.split("?")[0]}
+                          size={168}
+                          bgColor="#ffffff"
+                          fgColor="#000000"
+                          style={{ height: "auto", maxWidth: "100%", width: "100%" }}
+                        />
+                      )}
                     </div>
                   </div>
                 </div>
@@ -3367,6 +3443,52 @@ export default function Page() {
       </footer>
 
       {/* Download & Install Modal */}
+      {/* Permissions wizard - المستخدم يمنح الموافقات قبل تفعيل المنبه */}
+      {showPermWizard && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl">
+          <div className={`relative w-full max-w-md ${isDark ? "glass-dark" : "bg-white border border-zinc-200 shadow-2xl"} rounded-[2rem] p-7 max-h-[90vh] overflow-y-auto`}>
+            <button onClick={() => setShowPermWizard(false)} className={`absolute top-5 ${isRTL ? "left-5" : "right-5"} w-8 h-8 rounded-full ${isDark ? "bg-white/10" : "bg-zinc-100"} flex items-center justify-center hover:bg-white/20 transition`}>
+              <X className="w-4 h-4" />
+            </button>
+            <div className="text-center mb-4">
+              <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center mb-4 shadow-lg shadow-emerald-500/20">
+                <ShieldCheck className="w-8 h-8 text-black" />
+              </div>
+              <h3 className="text-xl font-bold mb-2">{t.permWizardTitle}</h3>
+              <p className={`text-sm ${textMuted} leading-relaxed`}>{t.permWizardDesc}</p>
+            </div>
+            <PermissionsPanel t={t as unknown as Record<string, string>} dark={isDark} rtl={isRTL} />
+            <div className="grid grid-cols-2 gap-2 mt-4">
+              <button
+                onClick={() => setShowPermWizard(false)}
+                className={`h-12 rounded-full ${glassClass} font-semibold text-sm hover:bg-white/10 transition`}
+              >
+                {t.permWizardLater}
+              </button>
+              <button
+                disabled={permChecking}
+                onClick={async () => {
+                  setPermChecking(true);
+                  try {
+                    const crit = await checkCritical();
+                    if (crit.ok) {
+                      setShowPermWizard(false);
+                      await handleSetAlarm();
+                    }
+                  } finally {
+                    setPermChecking(false);
+                  }
+                }}
+                className="h-12 rounded-full bg-emerald-500 text-black font-bold text-sm hover:bg-emerald-400 transition disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {permChecking ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                {t.permWizardActivate}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showDownloadModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl">
           <div className={`relative w-full max-w-md ${isDark ? "glass-dark" : "bg-white border border-zinc-200 shadow-2xl"} rounded-[2rem] p-7 max-h-[90vh] overflow-y-auto`}>
@@ -3516,6 +3638,15 @@ export default function Page() {
 
                   {installStep === "idle" && (
                     <div className="space-y-3">
+                      {!isNativeApp && isAndroidDevice() && (
+                        <button
+                          onClick={() => openNativeAppOr(() => void handleDownloadAPK())}
+                          className={`w-full h-12 rounded-2xl ${isDark ? "bg-white/10 hover:bg-white/15 border border-white/15" : "bg-zinc-100 hover:bg-zinc-200 border border-zinc-200"} font-bold text-sm flex items-center justify-center gap-2 transition`}
+                        >
+                          <Smartphone className="w-4 h-4 text-emerald-500" />
+                          {t.openAppBtn}
+                        </button>
+                      )}
                       {isNativeApp ? (
                         <div className={`w-full p-4 rounded-2xl ${isDark ? "bg-emerald-500/10 border-emerald-500/20" : "bg-emerald-50 border-emerald-200"} border text-center`}>
                           <div className="flex items-center justify-center gap-2 mb-2">
