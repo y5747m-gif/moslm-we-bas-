@@ -1,0 +1,107 @@
+name: "Build APK \U0001F4F1"
+
+# يبني ملف APK حقيقي من التطبيق عند كل دفع، ويرفعه:
+#  1) كـ Artifact للتحميل من صفحة الـ Actions
+#  2) في GitHub Release بوسم apk-latest (رابط ثابت للتحميل)
+#  3) داخل public/downloads ليُحمّل مباشرة من زر التحميل في الموقع
+
+on:
+  push:
+    branches: [main, "arena/**"]
+    paths-ignore:
+      - "public/downloads/**"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web export + sync Capacitor
+        run: npm run build:apk
+
+      - name: Bump Android versionCode from run number
+        run: |
+          sed -i "s/versionCode .*/versionCode ${{ github.run_number }}/" android/app/build.gradle
+          grep -n "versionCode\|versionName" android/app/build.gradle
+
+      - name: Assemble debug APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Collect APK + generate apk-info.json
+        run: |
+          mkdir -p public/downloads
+          cp android/app/build/outputs/apk/debug/app-debug.apk public/downloads/hatsally.apk
+          node scripts/apk-info.mjs
+          cat public/downloads/apk-info.json
+          ls -lh public/downloads/
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hatsally-apk
+          path: public/downloads/hatsally.apk
+          retention-days: 30
+
+      - name: Publish GitHub Release (apk-latest)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-latest
+          name: "هتصلي APK - أحدث نسخة 📱"
+          body: |
+            ## هتصلي يعني هتصلي - منبه الفجر الذكي 📱
+
+            حمّل ملف **hatsally.apk** وثبّته على هاتفك الأندرويد مباشرة.
+
+            ### طريقة التثبيت:
+            1. حمّل الملف على هاتفك
+            2. افتح الملف من التنزيلات
+            3. اسمح بـ "التثبيت من مصادر غير معروفة" إذا طُلب منك
+            4. اضغط تثبيت ثم افتح التطبيق 🕌
+
+            > تم تصميم هذا البرنامج لإيقاظك لصلاة الفجر وجميع الصلوات فلا تنسانا من صالح دعائكم 🤍
+
+            _بُني تلقائياً من `${{ github.ref_name }}` - run #${{ github.run_number }}_
+          files: public/downloads/hatsally.apk
+
+      - name: Commit APK back to branch (for in-site download button)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/downloads/hatsally.apk public/downloads/apk-info.json
+          if git diff --staged --quiet; then
+            echo "No APK changes to commit."
+            exit 0
+          fi
+          git commit -m "📱 تحديث ملف APK (بناء تلقائي #${{ github.run_number }}) [skip ci]"
+          git push
