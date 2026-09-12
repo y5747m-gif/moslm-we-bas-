@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">منبه الفجر</string>
+
+    <!-- Notification -->
+    <string name="notif_channel_name">تنبيه صلاة الفجر</string>
+    <string name="notif_channel_desc">رنين منبه الفجر بصوت عالٍ وشاشة كاملة</string>
+    <string name="notif_title">🌙 حان موعد صلاة الفجر</string>
+    <string name="notif_text">التقط 3 صور لإيقاف التنبيه — تقبل الله منك</string>
+    <string name="action_snooze">غفوة 5 دقائق</string>
+
+    <!-- Main screen -->
+    <string name="main_subtitle">استيقظ لصلاتك — بإرادتك وموافقتك</string>
+    <string name="status_on">المنبه مفعّل — %1$s ⏰</string>
+    <string name="status_on_desc">سيرن المنبه يومياً في الموعد، ولن يتوقف إلا بعد 3 صور.</string>
+    <string name="status_off">المنبه متوقف 😴</string>
+    <string name="status_off_desc">فعّل المنبه بعد منح الأذونات ليوقظك لصلاة الفجر.</string>
+    <string name="label_alarm_time">موعد التنبيه</string>
+    <string name="btn_pick_time">تغيير الموعد</string>
+    <string name="label_alarm_switch">تفعيل منبه الفجر اليومي</string>
+
+    <string name="perm_title">الأذونات (تمنحها بنفسك)</string>
+    <string name="perm_camera">الكاميرا</string>
+    <string name="perm_camera_desc">لالتقاط صور إثبات الاستيقاظ أثناء الرنين فقط</string>
+    <string name="perm_notif">الإشعارات</string>
+    <string name="perm_notif_desc">لعرض تنبيه الرنين فوق القفل مع الصوت والاهتزاز</string>
+    <string name="perm_exact">المنبه الدقيق</string>
+    <string name="perm_exact_desc">ليرن الهاتف في الموعد تماماً حتى في توفير الطاقة</string>
+    <string name="perm_battery">العمل في الخلفية</string>
+    <string name="perm_battery_desc">لمنع الهاتف من إسكات المنبه تلقائياً (اختياري)</string>
+    <string name="state_granted">ممنوح ✓</string>
+    <string name="state_grant">منح الإذن</string>
+
+    <string name="btn_test">🔔 اختبار المنبه (سيرن بعد 10 ثوانٍ)</string>
+    <string name="proofs_title">صور إثبات الاستيقاظ (على جهازك فقط)</string>
+    <string name="proofs_count">عدد الصور المحفوظة: %1$d</string>
+    <string name="proofs_hint">تُحفظ الصور في المساحة الخاصة بالتطبيق فقط، ولا تغادر جهازك أبداً (لا يوجد إذن إنترنت).</string>
+    <string name="btn_delete_proofs">حذف كل الصور</string>
+    <string name="safety_note">سلامتك أولاً: زر الغفوة وإيقاف الطوارئ (ضغط مطوّل 5 ثوانٍ) متاحان دائماً أثناء الرنين، ويتوقف الصوت تلقائياً بعد 15 دقيقة. ويمكنك تعطيل المنبه أو حذف التطبيق في أي وقت.</string>
+
+    <!-- Alarm (ringing) screen -->
+    <string name="alarm_title">حان الآن موعد صلاة الفجر</string>
+    <string name="alarm_subtitle">الصلاة خير من النوم — أثبت استيقاظك</string>
+    <string name="progress_text">تم التقاط %1$d من %2$d</string>
+    <string name="btn_capture">📸 التقاط صورة</string>
+    <string name="btn_switch_camera">تبديل الكاميرا</string>
+    <string name="btn_snooze">😴 غفوة 5 دقائق</string>
+    <string name="btn_emergency">إيقاف طوارئ (اضغط مطوّلاً 5 ثوانٍ)</string>
+    <string name="emergency_hint">للطوارئ فقط — استمر بالضغط 5 ثوانٍ متواصلة</string>
+    <string name="emergency_countdown">استمر بالضغط… %1$d</string>
+
+    <!-- Messages -->
+    <string name="msg_camera_granted">تم منح إذن الكاميرا ✓</string>
+    <string name="msg_camera_denied">تم رفض الكاميرا — لن يعمل تحدي الصور بدونها. يمكنك المنح من إعدادات التطبيق.</string>
+    <string name="msg_notif_denied">تم رفض الإشعارات — قد لا يظهر التنبيه فوق القفل.</string>
+    <string name="msg_already_granted">هذا الإذن ممنوح بالفعل ✓</string>
+    <string name="msg_open_settings_failed">تعذر فتح الإعدادات — افتحها يدوياً من إعدادات الهاتف</string>
+    <string name="msg_alarm_updated">تم تحديث الموعد إلى %1$s ✓</string>
+    <string name="msg_alarm_on">تم تفعيل منبه الفجر — %1$s ⏰</string>
+    <string name="msg_alarm_off">تم إيقاف المنبه وإلغاء كل التنبيهات</string>
+    <string name="msg_grant_first">امنح أولاً: %1$s</string>
+    <string name="msg_test_scheduled">سيرن منبه الاختبار بعد 10 ثوانٍ — جرّب تحدي الصور!</string>
+    <string name="msg_proofs_deleted">تم حذف %1$d صورة</string>
+    <string name="msg_back_blocked">أكمل الصور الثلاث، أو استخدم الغفوة، أو إيقاف الطوارئ (ضغط مطوّل)</string>
+    <string name="msg_photo_saved">أحسنت! صورة %1$d من %2$d ✓</string>
+    <string name="msg_challenge_done">تقبل الله منك — صباحك طاعة 🌙</string>
+    <string name="msg_snoozed">غفوة %1$d دقائق — سنوقظك مجدداً 😴</string>
+    <string name="msg_emergency_stopped">تم الإيقاف الطارئ — لا تنسَ صلاة الفجر</string>
+    <string name="msg_emergency_hold">استمر بالضغط 5 ثوانٍ للإيقاف الطارئ</string>
+
+    <!-- Errors -->
+    <string name="err_camera_not_ready">الكاميرا غير جاهزة بعد — انتظر لحظة وحاول مجدداً</string>
+    <string name="err_capture_failed_after_retry">تعذر الالتقاط بعد %1$d محاولات — جرّب تبديل الكاميرا أو نظّف العدسة وحاول مجدداً</string>
+    <string name="err_no_camera_permission">إذن الكاميرا غير ممنوح — افتح التطبيق الرئيسي وامنحه أولاً، أو استخدم الغفوة/الطوارئ</string>
+    <string name="err_camera_open">تعذر فتح الكاميرا — تأكد أن لا تطبيق آخر يستخدمها، ثم بدّل الكاميرا أو أعد المحاولة</string>
+</resources>

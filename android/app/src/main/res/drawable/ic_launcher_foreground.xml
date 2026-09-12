@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Golden crescent -->
+    <path
+        android:fillColor="#E8B94A"
+        android:pathData="M72,18a34,34 0 1,0 18,63A40,40 0 0,1 72,18z" />
+    <!-- Star -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M78,30l2.2,4.7 4.7,2.2 -4.7,2.2 -2.2,4.7 -2.2,-4.7 -4.7,-2.2 4.7,-2.2z" />
+    <circle
+        android:fillColor="#FFFFFF"
+        android:radius="2.5"
+        android:cx="84"
+        android:cy="52" />
+    <circle
+        android:fillColor="#FFFFFF"
+        android:radius="1.8"
+        android:cx="70"
+        android:cy="60" />
+</vector>

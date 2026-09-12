@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.FajrAlarm" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/gold_400</item>
+        <item name="colorOnPrimary">@color/night_950</item>
+        <item name="android:colorBackground">@color/night_950</item>
+        <item name="colorSurface">@color/night_900</item>
+        <item name="colorOnSurface">@color/text_main</item>
+        <item name="android:statusBarColor">@color/night_950</item>
+        <item name="android:navigationBarColor">@color/night_950</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+
+    <!-- Full-screen ringing theme -->
+    <style name="Theme.FajrAlarm.Alarm" parent="Theme.FajrAlarm">
+        <item name="android:windowShowWallpaper">false</item>
+        <item name="android:windowFullscreen">false</item>
+    </style>
+</resources>

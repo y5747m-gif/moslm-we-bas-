@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Segoe UI", Tahoma, "Cairo", "Tajawal", "Noto Kufi Arabic", Arial, sans-serif;
+  --color-night-950: #060b18;
+  --color-night-900: #0b1428;
+  --color-night-800: #14213d;
+  --color-gold-400: #e8b94a;
+  --color-gold-500: #d9a62e;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--color-night-950);
+  color: #f1f5f9;
+  font-family: var(--font-sans);
+}
+
+/* Subtle starfield for the hero */
+.stars {
+  background-image:
+    radial-gradient(1px 1px at 12% 22%, #ffffffcc 50%, transparent 51%),
+    radial-gradient(1px 1px at 32% 68%, #ffffff99 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 58% 18%, #ffffffcc 50%, transparent 51%),
+    radial-gradient(1px 1px at 74% 44%, #ffffff99 50%, transparent 51%),
+    radial-gradient(1px 1px at 88% 72%, #ffffffcc 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 22% 84%, #ffffff99 50%, transparent 51%),
+    radial-gradient(1px 1px at 44% 38%, #ffffffcc 50%, transparent 51%),
+    radial-gradient(1px 1px at 66% 86%, #ffffff99 50%, transparent 51%);
+}
+
+.glow-ring {
+  box-shadow: 0 0 60px -12px rgba(232, 185, 74, 0.45);
+}
+
+@keyframes float-slow {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+.animate-float-slow {
+  animation: float-slow 5s ease-in-out infinite;
+}
+
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 rgba(232, 185, 74, 0.5); }
+  70% { box-shadow: 0 0 0 18px rgba(232, 185, 74, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(232, 185, 74, 0); }
+}
+
+.animate-pulse-ring {
+  animation: pulse-ring 2.2s ease-out infinite;
+}
