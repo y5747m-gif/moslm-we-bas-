@@ -41,6 +41,14 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Install Android API 35/36 packages
+        run: |
+          SDK_ROOT="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+          echo "SDK_ROOT=$SDK_ROOT"
+          SDKMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
+          "$SDKMANAGER" "platform-tools" "platforms;android-36" "platforms;android-35" "build-tools;36.0.0" "build-tools;35.0.0"
+
       - name: Install dependencies
         run: npm ci
 
@@ -56,7 +64,26 @@ jobs:
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon --stacktrace
+          set +e
+          ./gradlew assembleDebug --no-daemon --stacktrace > /tmp/gradle.log 2>&1
+          code=$?
+          echo "Gradle exit code: $code"
+          tail -n 60 /tmp/gradle.log
+          if [ "$code" -ne 0 ]; then
+            msg=$(grep -aE "FAILED|error:|Error|Exception|What went wrong" /tmp/gradle.log | tail -n 25 | tr '\n' '%0A' | cut -c1-4000)
+            echo "::error::Gradle assembleDebug failed (exit $code): %0A$msg"
+          fi
+          cp /tmp/gradle.log "$GITHUB_WORKSPACE/gradle.log" || true
+          exit $code
+
+      - name: Upload Gradle log (debug)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-log
+          path: gradle.log
+          retention-days: 7
+          if-no-files-found: ignore
 
       - name: Collect APK + generate apk-info.json
         run: |
