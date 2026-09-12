@@ -1,13 +1,13 @@
 {
-  "available": false,
+  "available": true,
   "version": "5.1.0",
-  "versionCode": 0,
+  "versionCode": 3,
   "fileName": "hatsally.apk",
-  "sizeBytes": 0,
-  "sizeLabel": "",
-  "updatedAt": "",
+  "sizeBytes": 6631654,
+  "sizeLabel": "6.3 MB",
+  "updatedAt": "2026-09-12T00:55:22.500Z",
   "url": "/downloads/hatsally.apk",
   "releaseUrl": "https://github.com/y5747m-gif/moslm-we-bas-/releases/latest/download/hatsally.apk",
   "minAndroid": "7.0 (API 24)",
-  "note": "يُبنى ملف APK تلقائياً عبر GitHub Actions عند كل تحديث، ثم يُرفع هنا. إن لم يكن جاهزاً بعد، جرّب رابط GitHub Releases."
+  "note": "ملف APK حقيقي مبني من نفس كود التطبيق - ثبّته مباشرة على الأندرويد."
 }
