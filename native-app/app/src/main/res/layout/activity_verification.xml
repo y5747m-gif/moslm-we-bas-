@@ -1,0 +1,382 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg_dark">
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fillViewport="true"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <!-- الترويسة -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="8dp">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:text="@string/verify_title"
+                    android:textColor="@color/text_primary_dark"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/step_counter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="1 / 3"
+                    android:textColor="@color/text_muted_dark"
+                    android:textSize="12sp"
+                    android:fontFamily="monospace" />
+            </LinearLayout>
+
+            <!-- شريط الصوت -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/sound_on"
+                android:textColor="#FCA5A5"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:background="@drawable/bg_button_ghost"
+                android:padding="8dp"
+                android:gravity="center"
+                android:layout_marginBottom="10dp" />
+
+            <!-- نقاط التقدم -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center"
+                android:layout_marginBottom="12dp">
+
+                <View android:id="@+id/dot0" android:layout_width="26dp" android:layout_height="5dp" android:background="#FFFFFF" android:layout_marginEnd="4dp" />
+                <View android:id="@+id/dot1" android:layout_width="26dp" android:layout_height="5dp" android:background="#33FFFFFF" android:layout_marginEnd="4dp" />
+                <View android:id="@+id/dot2" android:layout_width="26dp" android:layout_height="5dp" android:background="#33FFFFFF" />
+            </LinearLayout>
+
+            <!-- المهمة الحالية -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/bg_card"
+                android:padding="14dp"
+                android:layout_marginBottom="12dp">
+
+                <TextView
+                    android:id="@+id/task_title"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text=""
+                    android:textColor="@color/text_primary_dark"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/task_desc"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text=""
+                    android:textColor="@color/text_muted_dark"
+                    android:textSize="12sp"
+                    android:layout_marginTop="4dp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/ai_badge"
+                    android:textColor="#93C5FD"
+                    android:textSize="10sp"
+                    android:textStyle="bold"
+                    android:layout_marginTop="6dp" />
+            </LinearLayout>
+
+            <!-- الكاميرا (المعاينة) -->
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="220dp"
+                android:background="@drawable/bg_card"
+                android:layout_marginBottom="10dp">
+
+                <TextureView
+                    android:id="@+id/cam_texture"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:visibility="gone" />
+
+                <!-- رسالة عند عدم توفر الكاميرا -->
+                <LinearLayout
+                    android:id="@+id/cam_placeholder"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="📷"
+                        android:textSize="34sp" />
+
+                    <TextView
+                        android:id="@+id/cam_error_text"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text=""
+                        android:textColor="#FCA5A5"
+                        android:textSize="12sp"
+                        android:gravity="center"
+                        android:layout_marginTop="8dp" />
+
+                    <TextView
+                        android:id="@+id/cam_open_btn"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/cam_open"
+                        android:textColor="#06120F"
+                        android:textSize="13sp"
+                        android:textStyle="bold"
+                        android:background="@drawable/bg_button_primary"
+                        android:paddingStart="18dp"
+                        android:paddingEnd="18dp"
+                        android:paddingTop="10dp"
+                        android:paddingBottom="10dp"
+                        android:layout_marginTop="10dp" />
+                </LinearLayout>
+
+                <!-- زر الالتقاط -->
+                <TextView
+                    android:id="@+id/btn_capture"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="bottom|center_horizontal"
+                    android:layout_marginBottom="12dp"
+                    android:background="@drawable/bg_button_primary"
+                    android:text="@string/btn_capture"
+                    android:textColor="#06120F"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:paddingStart="26dp"
+                    android:paddingEnd="26dp"
+                    android:paddingTop="12dp"
+                    android:paddingBottom="12dp"
+                    android:visibility="gone" />
+
+                <!-- التحليل -->
+                <LinearLayout
+                    android:id="@+id/analyzing_overlay"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="#CC06120F"
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:visibility="gone">
+
+                    <ProgressBar
+                        android:id="@+id/analyzing_bar"
+                        android:layout_width="36dp"
+                        android:layout_height="36dp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/ai_analyzing"
+                        android:textColor="@color/perm_ok"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        android:layout_marginTop="10dp" />
+                </LinearLayout>
+            </FrameLayout>
+
+            <!-- الصورة الملتقطة + النتيجة -->
+            <LinearLayout
+                android:id="@+id/captured_area"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/bg_card"
+                android:padding="10dp"
+                android:layout_marginBottom="10dp"
+                android:visibility="gone">
+
+                <ImageView
+                    android:id="@+id/captured_img"
+                    android:layout_width="match_parent"
+                    android:layout_height="170dp"
+                    android:scaleType="centerCrop"
+                    android:background="#000000"
+                    android:contentDescription="@string/captured" />
+
+                <LinearLayout
+                    android:id="@+id/result_panel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:id="@+id/result_text"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text=""
+                        android:textSize="13sp"
+                        android:textStyle="bold"
+                        android:layout_marginTop="8dp" />
+
+                    <TextView
+                        android:id="@+id/result_conf"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text=""
+                        android:textColor="@color/text_muted_dark"
+                        android:textSize="11sp"
+                        android:layout_marginTop="2dp" />
+
+                    <TextView
+                        android:id="@+id/attempts_label"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text=""
+                        android:textColor="@color/text_muted_dark"
+                        android:textSize="11sp" />
+
+                    <LinearLayout
+                        android:id="@+id/checks_container"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:layout_marginTop="6dp" />
+
+                    <LinearLayout
+                        android:id="@+id/tips_container"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:layout_marginTop="4dp" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:layout_marginTop="10dp">
+
+                        <TextView
+                            android:id="@+id/btn_confirm"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:layout_height="46dp"
+                            android:background="@drawable/bg_button_primary"
+                            android:gravity="center"
+                            android:text="@string/confirm_anyway"
+                            android:textColor="#06120F"
+                            android:textSize="13sp"
+                            android:textStyle="bold"
+                            android:layout_marginEnd="5dp"
+                            android:visibility="gone" />
+
+                        <TextView
+                            android:id="@+id/btn_retake"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:layout_height="46dp"
+                            android:background="@drawable/bg_button_ghost"
+                            android:gravity="center"
+                            android:text="@string/btn_retake"
+                            android:textColor="@color/text_primary_dark"
+                            android:textSize="13sp"
+                            android:textStyle="bold"
+                            android:layout_marginStart="5dp" />
+                    </LinearLayout>
+                </LinearLayout>
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/dua"
+                android:textColor="@color/text_muted_dark"
+                android:textSize="10sp"
+                android:gravity="center"
+                android:layout_marginTop="14dp"
+                android:lineSpacingExtra="3dp" />
+        </LinearLayout>
+    </ScrollView>
+
+    <!-- شاشة النجاح -->
+    <LinearLayout
+        android:id="@+id/success_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:background="@color/bg_dark"
+        android:padding="30dp"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="✅"
+            android:textSize="60sp" />
+
+        <TextView
+            android:id="@+id/success_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:textColor="@color/perm_ok"
+            android:textSize="26sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:layout_marginTop="16dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/success_desc"
+            android:textColor="@color/text_muted_dark"
+            android:textSize="13sp"
+            android:gravity="center"
+            android:layout_marginTop="12dp"
+            android:lineSpacingExtra="4dp" />
+
+        <TextView
+            android:id="@+id/success_dua"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:textColor="@color/text_muted_dark"
+            android:textSize="11sp"
+            android:gravity="center"
+            android:layout_marginTop="20dp"
+            android:lineSpacingExtra="4dp" />
+
+        <TextView
+            android:id="@+id/btn_close"
+            android:layout_width="match_parent"
+            android:layout_height="58dp"
+            android:background="@drawable/bg_button_primary"
+            android:gravity="center"
+            android:text="@string/btn_close"
+            android:textColor="#06120F"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:layout_marginTop="26dp" />
+    </LinearLayout>
+</FrameLayout>

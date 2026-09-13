@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">هتصلي</string>
+    <string name="app_sub">منبه الفجر الذكي</string>
+    <string name="dua">تم تصميم هذا البرنامج لإيقاظك لصلاة الفجر وجميع الصلوات فلا تنسانا من صالح دعائكم 🤍</string>
+
+    <!-- الساعة الرئيسية -->
+    <string name="clock_label">ساعة هاتفك الآن</string>
+    <string name="clock_bound">🔒 مربوط بساعة هاتفك - سيعمل في الموعد بالضبط حتى لو أغلقت التطبيق أو حذفت الإشعار</string>
+    <string name="status_text">المنبه مضبوط على %1$s - سيوقظ %2$s</string>
+    <string name="next_ring">⏱ الرنين القادم: %1$s (%2$s)</string>
+    <string name="cd_h">س</string>
+    <string name="cd_m">د</string>
+    <string name="cd_s">ث</string>
+
+    <!-- الضبط -->
+    <string name="name_label">اسمك (سيناديك به المنبه)</string>
+    <string name="name_hint">مثال: أحمد، محمد، فاطمة…</string>
+    <string name="time_label">وقت الاستيقاظ</string>
+    <string name="days_label">أيام التكرار</string>
+    <string name="day_sun">ح</string>
+    <string name="day_mon">ن</string>
+    <string name="day_tue">ث</string>
+    <string name="day_wed">ر</string>
+    <string name="day_thu">خ</string>
+    <string name="day_fri">ج</string>
+    <string name="day_sat">س</string>
+
+    <string-array name="day_short">
+        <item>ح</item>
+        <item>ن</item>
+        <item>ث</item>
+        <item>ر</item>
+        <item>خ</item>
+        <item>ج</item>
+        <item>س</item>
+    </string-array>
+    <string name="dur_label">مدة عمل المنبه</string>
+    <string name="dur_forever">دائم ♾️</string>
+    <string name="dur_7">7 أيام</string>
+    <string name="dur_14">14 يوم</string>
+    <string name="dur_30">30 يوم</string>
+    <string name="dur_custom">مخصص</string>
+    <string name="days_unit">يوم</string>
+    <string name="btn_add_alarm">➕ إضافة منبه</string>
+    <string name="btn_try">جرّب الرنين</string>
+    <string name="form_title_new">⏰ منبه جديد</string>
+    <string name="form_title_edit">✏️ تعديل المنبه</string>
+    <string name="btn_save_alarm">حفظ المنبه ✓</string>
+    <string name="btn_delete_alarm">حذف</string>
+    <string name="btn_cancel_form">إلغاء</string>
+    <string name="delete_confirm_title">حذف المنبه؟</string>
+    <string name="delete_confirm_msg">سيتم إلغاء الموعد الدقيق لهذا المنبه من ساعة هاتفك</string>
+    <string name="delete_yes">حذف</string>
+    <string name="delete_no">إلغاء</string>
+    <string name="no_alarms">لا توجد منبهات بعد - أضف منبهك الأول 🕌</string>
+    <string name="active_count">منبهات فعالة: %1$s</string>
+    <string name="next_ring_any">⏱ أقرب رنين: %1$s (بعد %2$s)</string>
+    <string name="no_next_ring">لا رنين مجدول</string>
+    <string name="untitled_alarm">منبه</string>
+    <string name="alarm_paused">(متوقف)</string>
+    <string name="days_all">كل الأيام</string>
+    <string name="dur_forever_short">دائم</string>
+    <string name="dur_days_short">%1$s يوم</string>
+    <string name="set_ok">✅ تم ضبط المنبه على ساعة هاتفك - الرنين القادم الساعة %1$s</string>
+    <string name="ring_time_line">🕰 %1$s</string>
+    <string name="set_fail">⚠️ تعذر ضبط الموعد - تحقق من الأذونات وحاول مجدداً</string>
+    <string name="cancel_none">لا يوجد منبه مضبوط</string>
+    <string name="cancel_done">تم إلغاء المنبه</string>
+    <string name="need_name">الرجاء إدخال اسمك أولاً</string>
+    <string name="need_day">اختر يوماً واحداً على الأقل</string>
+    <string name="exact_hint">من فضلك اسمح بـ "جدولة المنبهات الدقيقة" ليضبط الرنين بالثانية على ساعة هاتفك</string>
+    <string name="battery_hint">مستحسن: اسمح بـ "تجاهل تحسينات البطارية" حتى لا يوقف النظام المنبه أثناء نومك</string>
+
+    <!-- الأذونات -->
+    <string name="perm_title">أذونات المنبه</string>
+    <string name="perm_exact">المنبه الدقيق (ساعة الهاتف)</string>
+    <string name="perm_notif">الإشعارات</string>
+    <string name="perm_battery">تجاهل تحسين البطارية</string>
+
+    <!-- شاشة الرنين -->
+    <string name="wake_title_ar">استيقظ يا %1$s!</string>
+    <string name="wake_title_en">Wake up %1$s!</string>
+    <string name="stage_gentle_ar">🎙️ نداء لطيف باسمك</string>
+    <string name="stage_gentle_en">🎙️ Gentle call by name</string>
+    <string name="stage_annoying_ar">🔔 جرس مزعج - قم حالاً!</string>
+    <string name="stage_annoying_en">🔔 Annoying bell - get up!</string>
+    <string name="stage_extreme_ar">🚨 كابوس لا يُحتمل!</string>
+    <string name="stage_extreme_en">🚨 Unbearable nightmare!</string>
+    <string name="ringing_since">يرن منذ</string>
+    <string name="btn_woke">أنا مستيقظ ✓</string>
+    <string name="hold_snooze">اضغط مطولاً 3 ثوانٍ…</string>
+    <string name="snooze_progress">غفوة… %1$s٪</string>
+    <string name="snooze_used">تم استخدام الغفوة! لن يتوقف الآن إلا بالتصوير!</string>
+    <string name="snooze_set">💤 غفوة 5 دقائق - سيعود الرنين</string>
+    <string name="cannot_close">🔒 لا يمكن الإغلاق - لن يتوقف إلا بالتصوير!</string>
+    <string name="lock_badge">لا يمكن إغلاقه 🔒</string>
+    <string name="fajr_sub">حان وقت صلاة الفجر - خير من النوم</string>
+
+    <!-- التحقق -->
+    <string name="verify_title">إثبات الاستيقاظ</string>
+    <string name="sound_on">🔊 الصوت مستمر حتى إكمال التحقق</string>
+    <string name="task_water_ar">صنبور المياه</string>
+    <string name="task_water_en">Water Tap</string>
+    <string name="task_water_desc_ar">صوّر صنبور المياه لإثبات أنك توضأت</string>
+    <string name="task_water_desc_en">Photograph the water tap to prove wudu</string>
+    <string name="task_prayer_ar">المصلاة</string>
+    <string name="task_prayer_en">Prayer Mat</string>
+    <string name="task_prayer_desc_ar">صوّر سجادة الصلاة أو مكان صلاتك</string>
+    <string name="task_prayer_desc_en">Photograph your prayer mat or place</string>
+    <string name="task_face_ar">وجهك وعيناك مفتوحتان</string>
+    <string name="task_face_en">Your face with eyes open</string>
+    <string name="task_face_desc_ar">انظر للكاميرا وافتح عينيك جيداً</string>
+    <string name="task_face_desc_en">Look at the camera, eyes wide open</string>
+    <string name="btn_capture">التقاط 📸</string>
+    <string name="cam_open">فتح الكاميرا</string>
+    <string name="cam_denied">تم رفض صلاحية الكاميرا - اسمح بها من إعدادات التطبيق ثم أعد المحاولة</string>
+    <string name="cam_missing">لا توجد كاميرا على هذا الجهاز</string>
+    <string name="cam_busy">الكاميرا مشغولة بتطبيق آخر - أغلقه ثم أعد المحاولة</string>
+    <string name="cam_unknown">تعذر فتح الكاميرا - أعد المحاولة</string>
+    <string name="cam_notready">الكاميرا لم تستعد بعد - ثانية واحدة</string>
+    <string name="ai_analyzing">🤖 جاري التحليل بالذكاء الاصطناعي…</string>
+    <string name="ai_badge">🤖 فحص بالذكاء الاصطناعي</string>
+    <string name="attempts">المحاولات: %1$s</string>
+    <string name="confidence">الثقة: %1$s٪</string>
+    <string name="confirm_anyway">تأكيد على أي حال ✓</string>
+    <string name="btn_retake">إعادة التصوير</string>
+    <string name="btn_close">إغلاق ✓</string>
+    <string name="captured">الصورة الملتقطة</string>
+
+    <!-- رسائل النتائج -->
+    <string name="msgTapOk">صنبور مياه حقيقي ✓ أحسنت الوضوء</string>
+    <string name="msgTapFail">لا يبدو صنبور مياه - حاول مرة أخرى</string>
+    <string name="msgMatOk">مصلاة حقيقية ✓ تقبل الله</string>
+    <string name="msgMatFail">لا تبدو مصلاة - حاول مرة أخرى</string>
+    <string name="msgFaceOk">وجه وعينان مفتوحتان ✓ صباح النشاط!</string>
+    <string name="msgFaceNoFace">لا يوجد وجه - أظهر وجهك للكاميرا</string>
+    <string name="msgFaceSmall">الوجه بعيد - اقترب أكثر</string>
+    <string name="msgEyesClosed">العينان مغلقتان - افتحهما جيداً!</string>
+
+    <!-- فحوصات -->
+    <string name="cl_shine">لمعان المعدن</string>
+    <string name="cl_contrast">تباين الصورة</string>
+    <string name="cl_no_face">بدون وجه</string>
+    <string name="cl_light">إضاءة كافية</string>
+    <string name="cl_colors">ألوان السجادة</string>
+    <string name="cl_texture">نسيج/نقوش</string>
+    <string name="cl_fill">تغطية الصورة</string>
+    <string name="cl_face_found">وجه بشري</string>
+    <string name="cl_face_size">قرب الوجه</string>
+    <string name="cl_eyes_open">عينان مفتوحتان</string>
+
+    <!-- نصائح -->
+    <string name="tipLight">حسّن الإضاءة حولك</string>
+    <string name="tipTapLight">أضئ الصنبور ليظهر لمعان المعدن</string>
+    <string name="tipTapCloser">اقترب حتى يملأ الصنبور الصورة</string>
+    <string name="tipTapAngle">صوّر الصنبور من الأمام مباشرة</string>
+    <string name="tipTapOnly">اجعل الصنبور وحده في الصورة</string>
+    <string name="tipNotFace">هذه صورة وجه وليست المطلوب</string>
+    <string name="tipMatColors">تأكد من ظهور ألوان السجادة</string>
+    <string name="tipMatWhole">أظهر السجادة كاملة</string>
+    <string name="tipMatCenter">وسّط السجادة في الصورة</string>
+    <string name="tipMatCloser">اقترب لتظهر الزخارف</string>
+    <string name="tipFaceCloser">قرّب وجهك من الكاميرا</string>
+    <string name="tipEyesOpen">افتح عينيك واسعاً وانظر للكاميرا</string>
+
+    <!-- النجاح -->
+    <string name="success_title_ar">تقبل الله يا %1$s! 🎉</string>
+    <string name="success_title_en">May Allah accept %1$s! 🎉</string>
+    <string name="success_desc">أحسنت! أثبت استيقاظك ووضوءك - الآن قم لصلاة الفجر، فهي خير من النوم</string>
+
+    <!-- خدمة الإشعارات -->
+    <string name="alarm_channel">منبه هتصلي</string>
+    <string name="alarm_channel_desc">منبه الفجر - لا يتوقف إلا بالتصوير</string>
+    <string name="notif_title_ar">🚨 استيقظ يا %1$s!</string>
+    <string name="notif_title_en">🚨 Wake up %1$s!</string>
+    <string name="notif_body_ar">حان وقت الفجر! المنبه مستمر ولن يتوقف إلا بالتصوير 🔒</string>
+    <string name="notif_body_en">Fajr time! The alarm continues - only photo verification stops it 🔒</string>
+</resources>

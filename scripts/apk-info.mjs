@@ -22,9 +22,13 @@ const [major = 5, minor = 1, patch = 0] = String(pkg.version || "5.1.0")
 const runNumber = parseInt(process.env.GITHUB_RUN_NUMBER || "0", 10) || 0;
 const versionCode = runNumber > 0 ? runNumber : major * 10000 + minor * 100 + patch;
 
+// يمكن للمبنى (CI) تجاوز النسخة/الحد الأدنى بالأحرف البيئية APK_VERSION / APK_MIN_ANDROID
+const version = process.env.APK_VERSION || String(pkg.version || "5.1.0");
+const minAndroid = process.env.APK_MIN_ANDROID || "7.0 (API 24)";
+
 const info = {
   available: true,
-  version: String(pkg.version || "5.1.0"),
+  version,
   versionCode,
   fileName: "hatsally.apk",
   sizeBytes,
@@ -33,8 +37,8 @@ const info = {
   url: "/downloads/hatsally.apk",
   releaseUrl:
     "https://github.com/y5747m-gif/moslm-we-bas-/releases/latest/download/hatsally.apk",
-  minAndroid: "7.0 (API 24)",
-  note: "ملف APK حقيقي مبني من نفس كود التطبيق - ثبّته مباشرة على الأندرويد.",
+  minAndroid,
+  note: "تطبيق هتصلي الأصلي - واجهة أندرويد حقيقية، منبه مربوط بساعة الهاتف ويعمل حتى بعد حذف الإشعار.",
 };
 
 writeFileSync(outPath, JSON.stringify(info, null, 2) + "\n");

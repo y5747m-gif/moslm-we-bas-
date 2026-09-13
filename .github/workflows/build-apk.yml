@@ -1,9 +1,12 @@
 name: "Build APK \U0001F4F1"
 
-# يبني ملف APK حقيقي من التطبيق عند كل دفع، ويرفعه:
-#  1) كـ Artifact للتحميل من صفحة الـ Actions
-#  2) في GitHub Release بوسم apk-latest (رابط ثابت للتحميل)
-#  3) داخل public/downloads ليُحمّل مباشرة من زر التحميل في الموقع
+# يبني تطبيقين عند كل دفع:
+#  1) هتصلي الأصلي (Native) → hatsally.apk (التطبيق الفعلي - واجهة أندرويد حقيقية)
+#  2) نسخة الويب (Capacitor) → hatsally-web.apk (نسخة PWA داخل APK)
+# ويصفهما:
+#   - كـ Artifacts للتحميل من صفحة الـ Actions
+#   - في GitHub Release بوسم apk-latest (رابط ثابت)
+#   - داخل public/downloads ليُحمّلا مباشرة من الموقع
 
 on:
   push:
@@ -20,8 +23,116 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-apk:
+  build-native-apk:
     runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android packages
+        run: |
+          SDK_ROOT="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+          echo "SDK_ROOT=$SDK_ROOT"
+          SDKMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
+          "$SDKMANAGER" "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+
+      - name: Bump native versionCode (run number)
+        run: |
+          sed -i "s/versionCode 1/versionCode ${{ github.run_number }}/" native-app/app/build.gradle
+          grep -n "versionCode\|versionName" native-app/app/build.gradle
+
+      - name: Assemble NATIVE APK (hatsally-native)
+        run: |
+          cd native-app
+          chmod +x gradlew
+          set +e
+          ./gradlew assembleDebug --no-daemon --stacktrace > /tmp/gradle-native.log 2>&1
+          code=$?
+          echo "Gradle exit code: $code"
+          tail -n 60 /tmp/gradle-native.log
+          if [ "$code" -ne 0 ]; then
+            msg=$(grep -aE "FAILED|error:|Error|Exception|What went wrong" /tmp/gradle-native.log | tail -n 25 | tr '\n' '%0A' | cut -c1-4000)
+            echo "::error::Gradle native build failed (exit $code): %0A$msg"
+          fi
+          cp /tmp/gradle-native.log "$GITHUB_WORKSPACE/gradle-native.log" || true
+          exit $code
+
+      - name: Upload Gradle log (native)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-native-log
+          path: gradle-native.log
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Collect NATIVE APK + generate apk-info.json
+        env:
+          APK_VERSION: "1.0.0-native"
+          APK_MIN_ANDROID: "5.0 (API 21)"
+        run: |
+          mkdir -p public/downloads
+          cp native-app/app/build/outputs/apk/debug/app-debug.apk public/downloads/hatsally.apk
+          node scripts/apk-info.mjs
+          cat public/downloads/apk-info.json
+          ls -lh public/downloads/
+
+      - name: Upload NATIVE APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hatsally-native-apk
+          path: public/downloads/hatsally.apk
+          retention-days: 30
+
+      - name: Publish GitHub Release (apk-latest)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-latest
+          name: "هتصلي الأصلي - أحدث نسخة 📱"
+          body: |
+            ## هتصلي يعني هتصلي - تطبيق أندرويد أصلي 📱
+
+            حمّل ملف **hatsally.apk** (التطبيق الأصلي - واجهة أندرويد حقيقية) وثبّته على هاتفك مباشرة.
+            المنبه مربوط بساعة الهاتف ويعمل حتى لو حذفت الإشعار.
+
+            ### طريقة التثبيت:
+            1. حمّل الملف على هاتفك
+            2. افتح الملف من التنزيلات
+            3. اسمح بـ "التثبيت من مصادر غير معروفة" إذا طُلب منك
+            4. اضغط تثبيت ثم افتح هتصلي واضبط منبهك 🕌
+
+            > نسخة الويب (PWA داخل APK) متوفرة أيضاً: **hatsally-web.apk**
+
+            > تم تصميم هذا البرنامج لإيقاظك لصلاة الفجر وجميع الصلوات فلا تنسانا من صالح دعائكم 🤍
+
+            _بُني تلقائياً من `${{ github.ref_name }}` - run #${{ github.run_number }}_
+          files: public/downloads/hatsally.apk
+
+      - name: Commit NATIVE APK back to branch (in-site download button)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/downloads/hatsally.apk public/downloads/apk-info.json
+          if git diff --staged --quiet; then
+            echo "No APK changes to commit."
+            exit 0
+          fi
+          git commit -m "📱 تحديث تطبيق هتصلي الأصلي (بناء تلقائي #${{ github.run_number }}) [skip ci]"
+          git push
+
+  build-web-apk:
+    runs-on: ubuntu-latest
+    needs: build-native-apk
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -41,94 +152,76 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install Android API 35/36 packages
+      - name: Install Android API packages
         run: |
           SDK_ROOT="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
-          echo "SDK_ROOT=$SDK_ROOT"
           SDKMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
           yes | "$SDKMANAGER" --licenses > /dev/null || true
-          "$SDKMANAGER" "platform-tools" "platforms;android-36" "platforms;android-35" "build-tools;36.0.0" "build-tools;35.0.0"
+          "$SDKMANAGER" "platform-tools" "platforms;android-35" "platforms;android-36" "build-tools;35.0.0" "build-tools;36.0.0"
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Build web export + sync Capacitor
-        run: npm run build:apk
-
-      - name: Bump Android versionCode from run number
+      - name: Bump web versionCode (run number)
         run: |
           sed -i "s/versionCode .*/versionCode ${{ github.run_number }}/" android/app/build.gradle
           grep -n "versionCode\|versionName" android/app/build.gradle
 
-      - name: Assemble debug APK
+      - name: Build web export + sync Capacitor
+        run: npm run build:apk
+
+      - name: Assemble WEB APK (debug)
         run: |
           cd android
           chmod +x gradlew
           set +e
-          ./gradlew assembleDebug --no-daemon --stacktrace > /tmp/gradle.log 2>&1
+          ./gradlew assembleDebug --no-daemon --stacktrace > /tmp/gradle-web.log 2>&1
           code=$?
           echo "Gradle exit code: $code"
-          tail -n 60 /tmp/gradle.log
+          tail -n 60 /tmp/gradle-web.log
           if [ "$code" -ne 0 ]; then
-            msg=$(grep -aE "FAILED|error:|Error|Exception|What went wrong" /tmp/gradle.log | tail -n 25 | tr '\n' '%0A' | cut -c1-4000)
-            echo "::error::Gradle assembleDebug failed (exit $code): %0A$msg"
+            msg=$(grep -aE "FAILED|error:|Error|Exception|What went wrong" /tmp/gradle-web.log | tail -n 25 | tr '\n' '%0A' | cut -c1-4000)
+            echo "::error::Gradle web build failed (exit $code): %0A$msg"
           fi
-          cp /tmp/gradle.log "$GITHUB_WORKSPACE/gradle.log" || true
+          cp /tmp/gradle-web.log "$GITHUB_WORKSPACE/gradle-web.log" || true
           exit $code
 
-      - name: Upload Gradle log (debug)
+      - name: Upload Gradle log (web)
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: gradle-log
-          path: gradle.log
+          name: gradle-web-log
+          path: gradle-web.log
           retention-days: 7
           if-no-files-found: ignore
 
-      - name: Collect APK + generate apk-info.json
+      - name: Collect WEB APK
         run: |
-          mkdir -p public/downloads
-          cp android/app/build/outputs/apk/debug/app-debug.apk public/downloads/hatsally.apk
-          node scripts/apk-info.mjs
-          cat public/downloads/apk-info.json
+          cp android/app/build/outputs/apk/debug/app-debug.apk public/downloads/hatsally-web.apk
           ls -lh public/downloads/
 
-      - name: Upload APK artifact
+      - name: Upload WEB APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: hatsally-apk
-          path: public/downloads/hatsally.apk
+          name: hatsally-web-apk
+          path: public/downloads/hatsally-web.apk
           retention-days: 30
 
-      - name: Publish GitHub Release (apk-latest)
+      - name: Add WEB APK to the same release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: apk-latest
-          name: "هتصلي APK - أحدث نسخة 📱"
-          body: |
-            ## هتصلي يعني هتصلي - منبه الفجر الذكي 📱
+          files: public/downloads/hatsally-web.apk
+          fail_on_unmatched_files: false
 
-            حمّل ملف **hatsally.apk** وثبّته على هاتفك الأندرويد مباشرة.
-
-            ### طريقة التثبيت:
-            1. حمّل الملف على هاتفك
-            2. افتح الملف من التنزيلات
-            3. اسمح بـ "التثبيت من مصادر غير معروفة" إذا طُلب منك
-            4. اضغط تثبيت ثم افتح التطبيق 🕌
-
-            > تم تصميم هذا البرنامج لإيقاظك لصلاة الفجر وجميع الصلوات فلا تنسانا من صالح دعائكم 🤍
-
-            _بُني تلقائياً من `${{ github.ref_name }}` - run #${{ github.run_number }}_
-          files: public/downloads/hatsally.apk
-
-      - name: Commit APK back to branch (for in-site download button)
+      - name: Commit WEB APK back to branch
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add public/downloads/hatsally.apk public/downloads/apk-info.json
+          git add public/downloads/hatsally-web.apk
           if git diff --staged --quiet; then
-            echo "No APK changes to commit."
+            echo "No web APK changes to commit."
             exit 0
           fi
-          git commit -m "📱 تحديث ملف APK (بناء تلقائي #${{ github.run_number }}) [skip ci]"
+          git commit -m "📱 تحديث نسخة الويب APK (بناء تلقائي #${{ github.run_number }}) [skip ci]"
           git push

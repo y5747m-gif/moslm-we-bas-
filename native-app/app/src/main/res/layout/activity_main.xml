@@ -1,0 +1,451 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true"
+    android:scrollbars="none">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="18dp">
+
+        <!-- الترويسة -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="14dp">
+
+            <ImageView
+                android:layout_width="42dp"
+                android:layout_height="42dp"
+                android:src="@drawable/ic_app_badge"
+                android:contentDescription="@string/app_name" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:layout_marginStart="12dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/app_name"
+                    android:textColor="@color/text_primary_dark"
+                    android:textSize="22sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/app_sub"
+                    android:textColor="@color/text_muted_dark"
+                    android:textSize="12sp" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/lang_button"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="EN"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:textColor="@color/text_primary_dark"
+                android:background="@drawable/bg_button_ghost"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp"
+                android:layout_marginEnd="6dp" />
+
+            <TextView
+                android:id="@+id/theme_button"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🌗"
+                android:textSize="18sp"
+                android:padding="8dp" />
+        </LinearLayout>
+
+        <!-- ساعة الهاتف الحية -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/bg_card"
+            android:padding="18dp"
+            android:layout_marginBottom="12dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/clock_label"
+                android:textColor="@color/text_muted_dark"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:gravity="center" />
+
+            <TextView
+                android:id="@+id/clock_time"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="05:00:00"
+                android:textColor="@color/text_primary_dark"
+                android:textSize="44sp"
+                android:textStyle="bold"
+                android:fontFamily="monospace"
+                android:gravity="center"
+                android:layout_marginTop="2dp" />
+
+            <TextView
+                android:id="@+id/clock_date"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text=""
+                android:textColor="@color/text_muted_dark"
+                android:textSize="12sp"
+                android:gravity="center" />
+        </LinearLayout>
+
+        <!-- حالة المنبهات -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/bg_card"
+            android:padding="14dp"
+            android:layout_marginBottom="12dp">
+
+            <TextView
+                android:id="@+id/status_active"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text=""
+                android:textColor="@color/perm_ok"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/status_next"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text=""
+                android:textColor="@color/text_primary_dark"
+                android:textSize="12sp"
+                android:layout_marginTop="4dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/clock_bound"
+                android:textColor="@color/accent"
+                android:textSize="10sp"
+                android:textStyle="bold"
+                android:layout_marginTop="6dp" />
+        </LinearLayout>
+
+        <!-- قائمة المنبهات -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginBottom="10dp">
+
+            <TextView
+                android:id="@+id/no_alarms_text"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/no_alarms"
+                android:textColor="@color/text_muted_dark"
+                android:textSize="12sp"
+                android:gravity="center"
+                android:padding="14dp"
+                android:background="@drawable/bg_card"
+                android:visibility="gone" />
+
+            <LinearLayout
+                android:id="@+id/alarms_container"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
+        </LinearLayout>
+
+        <!-- أزرار الإضافة والتجربة -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="12dp">
+
+            <TextView
+                android:id="@+id/btn_add"
+                android:layout_width="0dp"
+                android:layout_weight="2"
+                android:layout_height="54dp"
+                android:background="@drawable/bg_button_primary"
+                android:gravity="center"
+                android:text="@string/btn_add_alarm"
+                android:textColor="#06120F"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:layout_marginEnd="8dp" />
+
+            <TextView
+                android:id="@+id/btn_try"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="54dp"
+                android:background="@drawable/bg_button_ghost"
+                android:gravity="center"
+                android:text="@string/btn_try"
+                android:textColor="@color/text_primary_dark"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- نموذج إضافة/تعديل منبه -->
+        <LinearLayout
+            android:id="@+id/form_card"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/bg_card"
+            android:padding="16dp"
+            android:layout_marginBottom="12dp"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/form_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text=""
+                android:textColor="@color/primary"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="10dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/name_label"
+                android:textColor="@color/text_primary_dark"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="6dp" />
+
+            <EditText
+                android:id="@+id/name_input"
+                android:layout_width="match_parent"
+                android:layout_height="50dp"
+                android:background="@drawable/bg_day_off"
+                android:paddingStart="14dp"
+                android:paddingEnd="14dp"
+                android:textColor="@color/text_primary_dark"
+                android:textColorHint="@color/text_muted_dark"
+                android:textSize="14sp"
+                android:hint="@string/name_hint"
+                android:inputType="textPersonName"
+                android:maxLines="1"
+                android:layout_marginBottom="10dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/time_label"
+                android:textColor="@color/text_primary_dark"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="6dp" />
+
+            <TextView
+                android:id="@+id/time_button"
+                android:layout_width="match_parent"
+                android:layout_height="50dp"
+                android:background="@drawable/bg_day_off"
+                android:gravity="center"
+                android:textColor="@color/text_primary_dark"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:fontFamily="monospace"
+                android:text="05:30"
+                android:layout_marginBottom="10dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/days_label"
+                android:textColor="@color/text_primary_dark"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="6dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="10dp">
+
+                <TextView android:id="@+id/day_sun" android:layout_width="0dp" android:layout_weight="1" android:layout_height="44dp" android:background="@drawable/bg_day_on" android:gravity="center" android:text="@string/day_sun" android:textColor="#06120F" android:textStyle="bold" android:textSize="13sp" android:layout_marginEnd="3dp" />
+                <TextView android:id="@+id/day_mon" android:layout_width="0dp" android:layout_weight="1" android:layout_height="44dp" android:background="@drawable/bg_day_on" android:gravity="center" android:text="@string/day_mon" android:textColor="#06120F" android:textStyle="bold" android:textSize="13sp" android:layout_marginEnd="3dp" />
+                <TextView android:id="@+id/day_tue" android:layout_width="0dp" android:layout_weight="1" android:layout_height="44dp" android:background="@drawable/bg_day_on" android:gravity="center" android:text="@string/day_tue" android:textColor="#06120F" android:textStyle="bold" android:textSize="13sp" android:layout_marginEnd="3dp" />
+                <TextView android:id="@+id/day_wed" android:layout_width="0dp" android:layout_weight="1" android:layout_height="44dp" android:background="@drawable/bg_day_on" android:gravity="center" android:text="@string/day_wed" android:textColor="#06120F" android:textStyle="bold" android:textSize="13sp" android:layout_marginEnd="3dp" />
+                <TextView android:id="@+id/day_thu" android:layout_width="0dp" android:layout_weight="1" android:layout_height="44dp" android:background="@drawable/bg_day_on" android:gravity="center" android:text="@string/day_thu" android:textColor="#06120F" android:textStyle="bold" android:textSize="13sp" android:layout_marginEnd="3dp" />
+                <TextView android:id="@+id/day_fri" android:layout_width="0dp" android:layout_weight="1" android:layout_height="44dp" android:background="@drawable/bg_day_on" android:gravity="center" android:text="@string/day_fri" android:textColor="#06120F" android:textStyle="bold" android:textSize="13sp" android:layout_marginEnd="3dp" />
+                <TextView android:id="@+id/day_sat" android:layout_width="0dp" android:layout_weight="1" android:layout_height="44dp" android:background="@drawable/bg_day_on" android:gravity="center" android:text="@string/day_sat" android:textColor="#06120F" android:textStyle="bold" android:textSize="13sp" />
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/dur_label"
+                android:textColor="@color/text_primary_dark"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="6dp" />
+
+            <RadioGroup
+                android:id="@+id/duration_group"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="10dp">
+
+                <RadioButton android:id="@+id/dur_forever" android:layout_width="0dp" android:layout_weight="2" android:layout_height="wrap_content" android:text="@string/dur_forever" android:textSize="11sp" android:textColor="@color/text_primary_dark" android:checked="true" />
+                <RadioButton android:id="@+id/dur_7" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="@string/dur_7" android:textSize="11sp" android:textColor="@color/text_primary_dark" />
+                <RadioButton android:id="@+id/dur_14" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="@string/dur_14" android:textSize="11sp" android:textColor="@color/text_primary_dark" />
+                <RadioButton android:id="@+id/dur_30" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="@string/dur_30" android:textSize="11sp" android:textColor="@color/text_primary_dark" />
+                <RadioButton android:id="@+id/dur_custom" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="@string/dur_custom" android:textSize="11sp" android:textColor="@color/text_primary_dark" />
+            </RadioGroup>
+
+            <LinearLayout
+                android:id="@+id/custom_days_row"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="10dp"
+                android:visibility="gone">
+
+                <EditText
+                    android:id="@+id/custom_days_input"
+                    android:layout_width="90dp"
+                    android:layout_height="44dp"
+                    android:background="@drawable/bg_day_off"
+                    android:gravity="center"
+                    android:inputType="number"
+                    android:textColor="@color/text_primary_dark"
+                    android:textSize="14sp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/days_unit"
+                    android:textColor="@color/text_muted_dark"
+                    android:textSize="12sp"
+                    android:layout_marginStart="8dp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/btn_save"
+                    android:layout_width="0dp"
+                    android:layout_weight="2"
+                    android:layout_height="52dp"
+                    android:background="@drawable/bg_button_primary"
+                    android:gravity="center"
+                    android:text="@string/btn_save_alarm"
+                    android:textColor="#06120F"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:layout_marginEnd="6dp" />
+
+                <TextView
+                    android:id="@+id/btn_delete"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="52dp"
+                    android:background="@drawable/bg_button_ghost"
+                    android:gravity="center"
+                    android:text="@string/btn_delete_alarm"
+                    android:textColor="@color/stage_extreme"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    android:layout_marginEnd="6dp"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/btn_cancel_form"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="52dp"
+                    android:background="@drawable/bg_button_ghost"
+                    android:gravity="center"
+                    android:text="@string/btn_cancel_form"
+                    android:textColor="@color/text_muted_dark"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- الأذونات -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/bg_card"
+            android:padding="14dp"
+            android:layout_marginBottom="14dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/perm_title"
+                android:textColor="@color/text_primary_dark"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="6dp" />
+
+            <TextView
+                android:id="@+id/perm_exact"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="@color/perm_ok"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/perm_notif"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="@color/perm_ok"
+                android:textSize="12sp"
+                android:layout_marginTop="3dp" />
+
+            <TextView
+                android:id="@+id/perm_battery"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="@color/perm_ok"
+                android:textSize="12sp"
+                android:layout_marginTop="3dp" />
+        </LinearLayout>
+
+        <!-- الدعاء -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/dua"
+            android:textColor="@color/text_muted_dark"
+            android:textSize="10sp"
+            android:gravity="center"
+            android:lineSpacingExtra="3dp" />
+    </LinearLayout>
+</ScrollView>

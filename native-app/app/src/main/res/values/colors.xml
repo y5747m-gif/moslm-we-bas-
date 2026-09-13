@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- هوية التطبيق الأصلي: أخضر زمردي عميق (مختلف عن الموقع) -->
+    <color name="bg_dark">#06120F</color>
+    <color name="bg_light">#F2F8F5</color>
+    <color name="surface_dark">#0C1E19</color>
+    <color name="surface_light">#FFFFFF</color>
+    <color name="primary">#10B981</color>
+    <color name="primary_dark">#0B8F63</color>
+    <color name="accent">#F59E0B</color>
+    <color name="text_primary_dark">#E8F5F0</color>
+    <color name="text_primary_light">#0B241C</color>
+    <color name="text_muted_dark">#8FB3A8</color>
+    <color name="text_muted_light">#5B7A6F</color>
+    <color name="day_on">#10B981</color>
+    <color name="day_off">#12281F</color>
+    <color name="day_off_light">#E3EEE9</color>
+    <color name="day_text_off">#7FA79A</color>
+    <color name="perm_ok">#34D399</color>
+    <color name="perm_warn">#FBBF24</color>
+    <color name="stage_gentle">#34D399</color>
+    <color name="stage_annoying">#FBBF24</color>
+    <color name="stage_extreme">#F87171</color>
+    <color name="danger">#EF4444</color>
+</resources>

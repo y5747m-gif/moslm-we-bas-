@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">HatSally</string>
+    <string name="app_sub">Smart Fajr Alarm</string>
+    <string name="dua">This app was designed to wake you for Fajr and all prayers - please don\'t forget us in your prayers 🤍</string>
+
+    <string name="clock_label">Your phone clock now</string>
+    <string name="clock_bound">🔒 Tied to your phone\'s clock - fires at the exact time even if you close the app or dismiss the notification</string>
+    <string name="status_text">Alarm set for %1$s - will wake %2$s</string>
+    <string name="next_ring">⏱ Next ring: %1$s (%2$s)</string>
+    <string name="cd_h">h</string>
+    <string name="cd_m">m</string>
+    <string name="cd_s">s</string>
+
+    <string name="name_label">Your name (alarm will call you by it)</string>
+    <string name="name_hint">e.g. Ahmed, Mohamed, Fatima…</string>
+    <string name="time_label">Wake up time</string>
+    <string name="days_label">Repeat days</string>
+    <string name="day_sun">Su</string>
+    <string name="day_mon">Mo</string>
+    <string name="day_tue">Tu</string>
+    <string name="day_wed">We</string>
+    <string name="day_thu">Th</string>
+    <string name="day_fri">Fr</string>
+    <string name="day_sat">Sa</string>
+
+    <string-array name="day_short">
+        <item>Su</item>
+        <item>Mo</item>
+        <item>Tu</item>
+        <item>We</item>
+        <item>Th</item>
+        <item>Fr</item>
+        <item>Sa</item>
+    </string-array>
+    <string name="dur_label">Alarm duration</string>
+    <string name="dur_forever">Forever ♾️</string>
+    <string name="dur_7">7 days</string>
+    <string name="dur_14">14 days</string>
+    <string name="dur_30">30 days</string>
+    <string name="dur_custom">Custom</string>
+    <string name="days_unit">days</string>
+    <string name="btn_add_alarm">➕ Add alarm</string>
+    <string name="btn_try">Try ringing</string>
+    <string name="form_title_new">⏰ New alarm</string>
+    <string name="form_title_edit">✏️ Edit alarm</string>
+    <string name="btn_save_alarm">Save alarm ✓</string>
+    <string name="btn_delete_alarm">Delete</string>
+    <string name="btn_cancel_form">Cancel</string>
+    <string name="delete_confirm_title">Delete alarm?</string>
+    <string name="delete_confirm_msg">Its exact schedule will be removed from your phone clock</string>
+    <string name="delete_yes">Delete</string>
+    <string name="delete_no">Cancel</string>
+    <string name="no_alarms">No alarms yet - add your first one 🕌</string>
+    <string name="active_count">Active alarms: %1$s</string>
+    <string name="next_ring_any">⏱ Next ring: %1$s (in %2$s)</string>
+    <string name="no_next_ring">No ring scheduled</string>
+    <string name="untitled_alarm">Alarm</string>
+    <string name="alarm_paused">(Paused)</string>
+    <string name="days_all">Every day</string>
+    <string name="dur_forever_short">Forever</string>
+    <string name="dur_days_short">%1$s days</string>
+    <string name="set_ok">✅ Alarm set on your phone clock - next ring at %1$s</string>
+    <string name="ring_time_line">🕰 %1$s</string>
+    <string name="set_fail">⚠️ Could not schedule - check permissions and retry</string>
+    <string name="cancel_none">No alarm is set</string>
+    <string name="cancel_done">Alarm cancelled</string>
+    <string name="need_name">Please enter your name first</string>
+    <string name="need_day">Select at least one day</string>
+    <string name="exact_hint">Please allow "Schedule exact alarms" so the alarm rings at the exact second on your phone clock</string>
+    <string name="battery_hint">Recommended: allow "Ignore battery optimizations" so the system never kills the alarm while you sleep</string>
+
+    <string name="perm_title">Alarm permissions</string>
+    <string name="perm_exact">Exact alarm (phone clock)</string>
+    <string name="perm_notif">Notifications</string>
+    <string name="perm_battery">Ignore battery optimization</string>
+
+    <string name="wake_title_ar">استيقظ يا %1$s!</string>
+    <string name="wake_title_en">Wake up %1$s!</string>
+    <string name="stage_gentle_ar">🎙️ Gentle call by name</string>
+    <string name="stage_gentle_en">🎙️ Gentle call by name</string>
+    <string name="stage_annoying_ar">🔔 Annoying bell - get up!</string>
+    <string name="stage_annoying_en">🔔 Annoying bell - get up!</string>
+    <string name="stage_extreme_ar">🚨 Unbearable nightmare!</string>
+    <string name="stage_extreme_en">🚨 Unbearable nightmare!</string>
+    <string name="ringing_since">Ringing since</string>
+    <string name="btn_woke">I\'m awake ✓</string>
+    <string name="hold_snooze">Hold for 3 seconds…</string>
+    <string name="snooze_progress">Snoozing… %1$s%</string>
+    <string name="snooze_used">Snooze already used! Only photo verification stops it now!</string>
+    <string name="snooze_set">💤 5-minute snooze - the alarm will return</string>
+    <string name="cannot_close">🔒 Cannot close - only photo verification stops it!</string>
+    <string name="lock_badge">Cannot be closed 🔒</string>
+    <string name="fajr_sub">Fajr prayer time - it\'s better than sleep</string>
+
+    <string name="verify_title">Prove you\'re awake</string>
+    <string name="sound_on">🔊 Sound continues until verification is complete</string>
+    <string name="task_water_ar">Water Tap</string>
+    <string name="task_water_en">Water Tap</string>
+    <string name="task_water_desc_ar">Photograph the water tap to prove wudu</string>
+    <string name="task_water_desc_en">Photograph the water tap to prove wudu</string>
+    <string name="task_prayer_ar">Prayer Mat</string>
+    <string name="task_prayer_en">Prayer Mat</string>
+    <string name="task_prayer_desc_ar">Photograph your prayer mat or place</string>
+    <string name="task_prayer_desc_en">Photograph your prayer mat or place</string>
+    <string name="task_face_ar">Your face with eyes open</string>
+    <string name="task_face_en">Your face with eyes open</string>
+    <string name="task_face_desc_ar">Look at the camera, eyes wide open</string>
+    <string name="task_face_desc_en">Look at the camera, eyes wide open</string>
+    <string name="btn_capture">Capture 📸</string>
+    <string name="cam_open">Open camera</string>
+    <string name="cam_denied">Camera permission denied - allow it in app settings and retry</string>
+    <string name="cam_missing">No camera on this device</string>
+    <string name="cam_busy">Camera is busy by another app - close it and retry</string>
+    <string name="cam_unknown">Could not open camera - retry</string>
+    <string name="cam_notready">Camera is not ready yet - one second</string>
+    <string name="ai_analyzing">🤖 Analyzing with AI…</string>
+    <string name="ai_badge">🤖 AI Powered Check</string>
+    <string name="attempts">Attempts: %1$s</string>
+    <string name="confidence">Confidence: %1$s%</string>
+    <string name="confirm_anyway">Confirm anyway ✓</string>
+    <string name="btn_retake">Retake photo</string>
+    <string name="btn_close">Close ✓</string>
+    <string name="captured">Captured photo</string>
+
+    <string name="msgTapOk">Real water tap ✓ Good wudu</string>
+    <string name="msgTapFail">Doesn\'t look like a water tap - try again</string>
+    <string name="msgMatOk">Real prayer mat ✓ May Allah accept</string>
+    <string name="msgMatFail">Doesn\'t look like a mat - try again</string>
+    <string name="msgFaceOk">Face with open eyes ✓ Morning energy!</string>
+    <string name="msgFaceNoFace">No face found - show your face</string>
+    <string name="msgFaceSmall">Face too far - get closer</string>
+    <string name="msgEyesClosed">Eyes closed - open them wide!</string>
+
+    <string name="cl_shine">Metal shine</string>
+    <string name="cl_contrast">Contrast</string>
+    <string name="cl_no_face">No face</string>
+    <string name="cl_light">Enough light</string>
+    <string name="cl_colors">Mat colors</string>
+    <string name="cl_texture">Texture/pattern</string>
+    <string name="cl_fill">Frame coverage</string>
+    <string name="cl_face_found">Human face</string>
+    <string name="cl_face_size">Face closeness</string>
+    <string name="cl_eyes_open">Eyes open</string>
+
+    <string name="tipLight">Improve the lighting around you</string>
+    <string name="tipTapLight">Light the tap so the metal shines</string>
+    <string name="tipTapCloser">Get closer until the tap fills the frame</string>
+    <string name="tipTapAngle">Photograph the tap straight from front</string>
+    <string name="tipTapOnly">Keep only the tap in the frame</string>
+    <string name="tipNotFace">That\'s a face photo, not the required object</string>
+    <string name="tipMatColors">Make sure the mat colors are visible</string>
+    <string name="tipMatWhole">Show the whole mat</string>
+    <string name="tipMatCenter">Center the mat in the frame</string>
+    <string name="tipMatCloser">Get closer to show the patterns</string>
+    <string name="tipFaceCloser">Bring your face closer to the camera</string>
+    <string name="tipEyesOpen">Open your eyes wide and look at the camera</string>
+
+    <string name="success_title_ar">تقبل الله يا %1$s! 🎉</string>
+    <string name="success_title_en">May Allah accept %1$s! 🎉</string>
+    <string name="success_desc">Well done! You proved you\'re awake and made wudu - now go pray Fajr, it\'s better than sleep</string>
+
+    <string name="alarm_channel">HatSally Alarm</string>
+    <string name="alarm_channel_desc">Fajr alarm - only photo verification stops it</string>
+    <string name="notif_title_ar">🚨 استيقظ يا %1$s!</string>
+    <string name="notif_title_en">🚨 Wake up %1$s!</string>
+    <string name="notif_body_ar">Fajr time! The alarm continues - only photo verification stops it 🔒</string>
+    <string name="notif_body_en">Fajr time! The alarm continues - only photo verification stops it 🔒</string>
+</resources>
