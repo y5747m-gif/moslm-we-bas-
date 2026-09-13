@@ -1,7 +1,7 @@
-// HatSally - هتصلي يعني هتصلي - Service Worker v6 Real Vision + Face Models
-// Features: Auto update, persistent alarm, real faucet/mat verification, offline face models
-const CACHE_NAME = "hatsally-v8-alarmfix";
-const APP_VERSION = "5.1.0-real-vision";
+// HatSally - هتصلي يعني هتصلي - Service Worker v9 Exact Clock Alarm
+// Features: Auto update, persistent alarm, grace-window clock check, real vision, offline face models
+const CACHE_NAME = "hatsally-v9-exactclock";
+const APP_VERSION = "5.2.0-exact-clock";
 const PRECACHE_URLS = [
   "/",
   "/icons/icon-192.png",
@@ -52,6 +52,7 @@ function saveAlarmToDB(alarmData) {
         startDate: alarmData.startDate || new Date().toISOString(),
         active: true,
         stage: "idle",
+        lastFiredKey: alarmData.lastFiredKey || null, // yyyy-mm-dd: آخر يوم رنّ فيه (مرة واحدة يومياً)
         createdAt: new Date().toISOString(),
         version: APP_VERSION
       };
@@ -151,55 +152,74 @@ function showPersistentAlarm(name, stage, lang) {
   return self.registration.showNotification(title, options);
 }
 
+// --- فحص المنبه على وقت الجهاز مع مهلة لحاق (نفس منطق lib/schedule.ts) ---
+function pad2(n) { return String(n).padStart(2, "0"); }
+function localDayKey(d) { return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate()); }
+
+// مهلة اللحاق بالدقائق - لو لم يرنّ عند الدقيقة بالضبط، يلحق خلال 45 دقيقة
+const WEB_RING_GRACE_MIN = 45;
+
 function checkAndTriggerAlarm() {
   return getAlarmFromDB().then(alarm => {
     if (!alarm || !alarm.active) return;
-    
+
+    // نهاية المدة المحدودة (7/14/30 يوم) - تُحسب على أيام اليوم المحلي
     if (alarm.duration !== 'forever' && alarm.startDate) {
       const start = new Date(alarm.startDate);
       const now = new Date();
-      const diffDays = Math.floor((now.getTime() - start.getTime()) / (1000*60*60*24));
+      const startDay = new Date(start); startDay.setHours(0, 0, 0, 0);
+      const nowDay = new Date(now); nowDay.setHours(0, 0, 0, 0);
+      const diffDays = Math.floor((nowDay.getTime() - startDay.getTime()) / 86400000);
       const limit = typeof alarm.duration === 'number' ? alarm.duration : parseInt(alarm.duration);
       if (!isNaN(limit) && diffDays >= limit) {
-        return clearAlarmFromDB().then(() => {
-          console.log(`[SW ${APP_VERSION}] Alarm expired after`, limit, "days");
-        });
+        alarm.active = false;
+        return openDB().then(db => new Promise((res, rej) => {
+          const tx = db.transaction(STORE_ALARMS, "readwrite");
+          tx.objectStore(STORE_ALARMS).put(alarm);
+          tx.oncomplete = () => {
+            self.registration.getNotifications({ tag: "hatsally-persistent-alarm" })
+              .then(ns => ns.forEach(n => n.close())).catch(() => {});
+            res();
+          };
+          tx.onerror = () => rej(tx.error);
+        })).then(() => console.log(`[SW ${APP_VERSION}] Alarm expired after ${limit} days`));
       }
-    }
-
-    const today = new Date().getDay();
-    if (alarm.days && alarm.days.length > 0 && !alarm.days.includes(today)) {
-      return;
     }
 
     const now = new Date();
-    const [alarmH, alarmM] = alarm.time.split(":").map(Number);
-    const nowH = now.getHours();
-    const nowM = now.getMinutes();
-    
-    const timeDiff = Math.abs((nowH*60+nowM) - (alarmH*60+alarmM));
-    const isTimeMatch = (nowH === alarmH && nowM === alarmM) || (timeDiff <= 1 && alarm.stage === "idle");
-    
-    if (isTimeMatch) {
-      if (alarm.lastTrigger) {
-        const last = new Date(alarm.lastTrigger);
-        const diffMinutes = (now.getTime() - last.getTime()) / (1000*60);
-        if (diffMinutes < 4 && alarm.stage !== "idle") {
-          return;
-        }
-      }
-      
-      console.log(`[SW ${APP_VERSION}] 🔔 Triggering persistent alarm!`, alarm.time, "for", alarm.name);
-      return updateAlarmStageInDB("ringing").then(() => {
-        return showPersistentAlarm(alarm.name, "ringing", "ar");
-      }).then(() => {
-        return self.clients.matchAll().then(clients => {
-          clients.forEach(client => {
-            client.postMessage({ type: "ALARM_TRIGGERED", time: alarm.time, name: alarm.name, stage: "ringing", version: APP_VERSION });
-          });
+    const parts = (alarm.time || "05:00").split(":");
+    const alarmH = parseInt(parts[0], 10);
+    const alarmM = parseInt(parts[1], 10);
+    if (isNaN(alarmH) || isNaN(alarmM) || alarmH < 0 || alarmH > 23 || alarmM < 0 || alarmM > 59) return;
+
+    const days = (alarm.days && alarm.days.length > 0) ? alarm.days : [0, 1, 2, 3, 4, 5, 6];
+    if (!days.includes(now.getDay())) return;
+
+    // موعد اليوم (توقيت الجهاز المحلي)
+    const scheduled = new Date(now);
+    scheduled.setHours(alarmH, alarmM, 0, 0);
+    const diffMin = (now.getTime() - scheduled.getTime()) / 60000;
+
+    // يرنّ عند حلول الموعد أو بعده ضمن المهلة (لحاق) - مرة واحدة فقط في اليوم
+    if (diffMin < 0 || diffMin > WEB_RING_GRACE_MIN) return;
+    if (alarm.lastFiredKey === localDayKey(now)) return;
+
+    console.log(`[SW ${APP_VERSION}] 🔔 Triggering alarm (diff ${diffMin.toFixed(1)} min from phone clock)`, alarm.time);
+    alarm.lastFiredKey = localDayKey(now);
+    alarm.stage = "ringing";
+    alarm.lastTrigger = now.toISOString();
+    return openDB().then(db => new Promise((res, rej) => {
+      const tx = db.transaction(STORE_ALARMS, "readwrite");
+      tx.objectStore(STORE_ALARMS).put(alarm);
+      tx.oncomplete = () => res(alarm);
+      tx.onerror = () => rej(tx.error);
+    })).then(() => showPersistentAlarm(alarm.name || "بطل الفجر", "ringing", "ar")).then(() => {
+      return self.clients.matchAll().then(clients => {
+        clients.forEach(client => {
+          client.postMessage({ type: "ALARM_TRIGGERED", time: alarm.time, name: alarm.name, stage: "ringing", version: APP_VERSION });
         });
       });
-    }
+    });
   }).catch(err => console.error(`[SW ${APP_VERSION}] check error`, err));
 }
 

@@ -11,7 +11,7 @@
  * على المتصفح العادي كل الدوال تُرجع false بأمان ويعمل بديل الويب.
  */
 
-import { Capacitor } from "@capacitor/core";
+import { Capacitor, registerPlugin } from "@capacitor/core";
 
 /** هل نعمل داخل تطبيق APK أصلي؟ */
 export function isNativeApp(): boolean {
@@ -299,6 +299,111 @@ export async function onNativeAlarmTap(
     return () => void listener.remove();
   } catch {
     return () => {};
+  }
+}
+
+// ------------------------------------------------------------------
+// HatAlarm - محرك المنبه الدقيق المربوط بساعة الهاتف 🕰
+// ------------------------------------------------------------------
+// هذا هو الحل الحقيقي لـ "التطبيق لا ينبه في المعاد المحدد":
+// المواعيد تُسجَّل على AlarmManager بنوعها الدقيق (exact) داخل
+// نظام أندرويد نفسه - أي أنها مربوطة بساعة الهاتف وليست بعدادات
+// JavaScript التي تموت عند إغلاق الصفحة أو التطبيق.
+// - تعمل حتى لو كان التطبيق مغلقاً أو اقتُلع من الذاكرة
+// - إشعار مستمر + خدمة نظام يظلان يعملان بعد حذف الإشعار
+//   (لا يتوقفان إلا بعد اكتمال التحقق بالتصوير)
+// - تُعاد جدولتها تلقائياً بعد كل رنين وبعد إعادة تشغيل الهاتف
+// ------------------------------------------------------------------
+interface HatAlarmApi {
+  schedule(opts: { time: string; days: number[]; name: string; lang: "ar" | "en" }): Promise<{ ok: boolean; next?: number[] }>;
+  cancel(): Promise<unknown>;
+  stopRinging(): Promise<unknown>;
+  startRinging(): Promise<unknown>;
+  state(): Promise<{ armed: boolean; ringing: boolean; next?: number[] }>;
+}
+
+const HatAlarm = registerPlugin<HatAlarmApi>("HatAlarm");
+
+export interface HatAlarmState {
+  /** هل المنبه مسلح بمواعيد دقيقة على النظام؟ */
+  armed: boolean;
+  /** هل خدمة الرنين النظامية تعمل الآن؟ */
+  ringing: boolean;
+  /** مواعيد الرنين القادمة (ملي ثانية) */
+  next: number[];
+}
+
+const HAT_ALARM_EMPTY: HatAlarmState = { armed: false, ringing: false, next: [] };
+
+/**
+ * ضبط منبه دقيق على ساعة الهاتف: يحفظ الإعدادات ويجدول
+ * أول ظهور قادم لكل يوم مختار. يُرجع false إن تعذر (فيُستخدم
+ * بديل LocalNotifications).
+ */
+export async function hatAlarmSchedule(opts: {
+  time: string;
+  days: number[];
+  name: string;
+  lang: "ar" | "en";
+}): Promise<boolean> {
+  if (!isNativeApp()) return false;
+  try {
+    const r = await HatAlarm.schedule(opts);
+    if (r && r.ok) {
+      console.log("🕰 [HatAlarm] exact alarm armed on phone clock, next:", r.next);
+      return true;
+    }
+    return false;
+  } catch (e) {
+    console.warn("[HatAlarm] schedule failed:", e);
+    return false;
+  }
+}
+
+/** إلغاء كل المواعيد الدقيقة + إيقاف الرنين (تعطيل المنبه) */
+export async function hatAlarmCancel(): Promise<void> {
+  if (!isNativeApp()) return;
+  try {
+    await HatAlarm.cancel();
+    console.log("🕰 [HatAlarm] cancelled");
+  } catch {
+    /* تجاهل */
+  }
+}
+
+/** إيقاف خدمة الرنين النظامية فقط (بعد اكتمال التحقق) */
+export async function hatAlarmStop(): Promise<void> {
+  if (!isNativeApp()) return;
+  try {
+    await HatAlarm.stopRinging();
+  } catch {
+    /* تجاهل */
+  }
+}
+
+/** بدء خدمة الرنين النظامية فوراً (مسار اللحاق: حان الموعد والتطبيق مفتوح) */
+export async function hatAlarmStart(): Promise<void> {
+  if (!isNativeApp()) return;
+  try {
+    await HatAlarm.startRinging();
+    console.log("🚨 [HatAlarm] system ringing started");
+  } catch {
+    /* تجاهل */
+  }
+}
+
+/** حالة محرك المنبه الدقيق (للمزامنة عند فتح التطبيق) */
+export async function hatAlarmState(): Promise<HatAlarmState> {
+  if (!isNativeApp()) return { ...HAT_ALARM_EMPTY, next: [] };
+  try {
+    const s = await HatAlarm.state();
+    return {
+      armed: !!s?.armed,
+      ringing: !!s?.ringing,
+      next: Array.isArray(s?.next) ? (s.next as number[]) : [],
+    };
+  } catch {
+    return { ...HAT_ALARM_EMPTY, next: [] };
   }
 }
 

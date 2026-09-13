@@ -57,6 +57,11 @@ import {
   requestNativePermissions,
   guardBackButtonWhileRinging,
   onNativeAlarmTap,
+  hatAlarmSchedule,
+  hatAlarmCancel,
+  hatAlarmStop,
+  hatAlarmStart,
+  hatAlarmState,
   getApkInfo,
   downloadApk,
   triggerBlobDownload,
@@ -338,6 +343,7 @@ const translations = {
     weekend: "عطلة نهاية الأسبوع",
     alarmWorksAfterClose: "يعمل حتى بعد إغلاق التطبيق والهاتف",
     alarmWorksAfterCloseDesc: "المنبه محفوظ في النظام وسيعمل حتى لو أغلقت التطبيق أو حذفت الإشعار أو أعدت تشغيل الهاتف",
+    clockBound: "مربوط بساعة هاتفك 🕰 — سيعمل في الموعد بالضبط حتى لو أغلقت التطبيق أو حذفت الإشعار",
     persistentAlarm: "منبه دائم",
     appUpdated: "تم تحديث التطبيق! 🎉",
     appUpdatedDesc: "التطبيق تم تحديثه تلقائياً إلى الإصدار الجديد",
@@ -685,6 +691,7 @@ const translations = {
     weekend: "Weekend",
     alarmWorksAfterClose: "Works even after closing app and phone",
     alarmWorksAfterCloseDesc: "Alarm saved in system and will work even if you close app, dismiss notification, or restart phone",
+    clockBound: "Tied to your phone's clock 🕰 - fires at the exact time even if you close the app or dismiss the notification",
     persistentAlarm: "Persistent Alarm",
     appUpdated: "App Updated! 🎉",
     appUpdatedDesc: "App automatically updated to new version",
@@ -824,6 +831,8 @@ export default function Page() {
 
   // Native APK + real APK download states
   const [isNativeApp, setIsNativeApp] = useState(false);
+  // هل المنبه مسلح بمواعيد دقيقة على نظام الهاتف (AlarmManager)؟
+  const [hatAlarmArmed, setHatAlarmArmed] = useState(false);
   const [apkInfo, setApkInfo] = useState<ApkInfo | null>(null);
   const [apkProgress, setApkProgress] = useState(0);
   const [apkDownloading, setApkDownloading] = useState(false);
@@ -1530,6 +1539,11 @@ export default function Page() {
     warmUpVerification();
     // فرض الاستيقاظ: صوت أقصى + شاشة مستيقظة فوق القفل
     void enforceRinging();
+    // رنين على مستوى النظام (محرك المنبه الدقيق المربوط بساعة الهاتف):
+    // إشعار مستمر + صوت متكرر يظلان يعملان حتى بعد إغلاق واجهة التطبيق
+    // وحتى حذف الإشعار - لا يتوقفان إلا بعد اكتمال التحقق بالتصوير.
+    // (زر التجربة demo لا يفعّل خدمة النظام - تجربة داخلية فقط)
+    if (!opts?.demo && checkNativeApp()) void hatAlarmStart();
     if (userName) speakWakeUp(userName, false);
     playGentleTone();
     speechIntervalRef.current = setInterval(() => {
@@ -1579,7 +1593,10 @@ export default function Page() {
       try { localStorage.setItem("hatsally-last-fired", getTodayKey(new Date())); } catch {}
     } else if (decision.action === "expired") {
       setIsAlarmActive(false);
+      setHatAlarmArmed(false);
       try { localStorage.setItem("hatsally-alarm-active", "false"); } catch {}
+      // انتهت المدة: إلغاء كل المواعيد الدقيقة على النظام
+      void hatAlarmCancel();
       void cancelNativeAlarm();
     }
   }, [isAlarmActive, alarmStage, alarmTime, selectedDays, durationDays, alarmStartDate, triggerAlarm]);
@@ -1613,6 +1630,50 @@ export default function Page() {
       }
     }).then((fn) => { off = fn; });
     return () => { if (off) off(); };
+  }, [isNativeApp]);
+
+  // المزامنة مع محرك المنبه الدقيق عند فتح التطبيق (مربوط بساعة الهاتف) 🕰
+  // 1) إذا كان رنين النظام يعمل (حلّ الموعد والتطبيق كان مغلقاً) → واجهة التطبيق
+  //    تتزامن معه فوراً وتبدأ التصعيد والتحقق.
+  // 2) إذا كان المنبه مفعلاً → إعادة مزامنة المواعيد الدقيقة على النظام حتى
+  //    لا يضيع أبداً (تحديث التطبيق، إعادة تشغيل الهاتف، اقتلاع العملية).
+  useEffect(() => {
+    if (!isNativeApp) return;
+    let cancelled = false;
+    void (async () => {
+      const st = await hatAlarmState();
+      if (cancelled) return;
+      setHatAlarmArmed(st.armed);
+      // 1) المنبه النظامي يرن الآن → مزامنة الواجهة الداخلية فوراً
+      if (st.ringing && alarmStageRef.current === "idle") {
+        console.log("🚨 [HatAlarm] system alarm already ringing - syncing in-app UI");
+        triggerAlarmRef.current();
+        return;
+      }
+      // 2) إعادة مزامنة المواعيد إذا كان المنبه مفعلاً
+      try {
+        const active = localStorage.getItem("hatsally-alarm-active") === "true";
+        if (active) {
+          const time = localStorage.getItem("hatsally-alarm-time") || "05:00";
+          const name = localStorage.getItem("hatsally-user-name") || "";
+          const lang = (localStorage.getItem("hatsally-lang") as Language) || "ar";
+          let days: number[] = [0, 1, 2, 3, 4, 5, 6];
+          try {
+            const d = JSON.parse(localStorage.getItem("hatsally-alarm-days") || "");
+            if (Array.isArray(d) && d.length > 0) days = d;
+          } catch {}
+          const ok = await hatAlarmSchedule({ time, days, name, lang: lang === "en" ? "en" : "ar" });
+          setHatAlarmArmed(ok);
+          if (!ok) {
+            // بديل إن تعذر محرك المنبه الدقيق: تنبيهات LocalNotifications
+            void scheduleNativeAlarm({ time, name, days, lang: lang === "en" ? "en" : "ar" });
+          }
+        }
+      } catch {
+        /* تجاهل */
+      }
+    })();
+    return () => { cancelled = true; };
   }, [isNativeApp]);
 
   // Listen to SW messages for persistent alarm + auto-update - must be after triggerAlarm
@@ -1754,12 +1815,21 @@ export default function Page() {
         startDate: startDate
       });
     }
-    // داخل تطبيق APK: جدولة تنبيه أصلي دقيق يعمل حتى لو التطبيق مغلق تماماً
+    // داخل تطبيق APK: جدولة منبه دقيق على ساعة الهاتف (AlarmManager)
+    // - يعمل حتى لو التطبيق مغلقاً تماماً أو أُعيد تشغيل الهاتف
+    // - إشعار مستمر + خدمة نظام تظل تعملان حتى بعد حذف الإشعار
     if (isNativeApp) {
-      void scheduleNativeAlarm({ time: alarmTime, name: userName, days: selectedDays, lang: language });
+      const exactOk = await hatAlarmSchedule({ time: alarmTime, name: userName, days: selectedDays, lang: language });
+      setHatAlarmArmed(exactOk);
+      if (!exactOk) {
+        // بديل: تنبيهات LocalNotifications الأسبوعية
+        void scheduleNativeAlarm({ time: alarmTime, name: userName, days: selectedDays, lang: language });
+      }
       void notifyNative(
         language === "ar" ? "✅ تم ضبط منبه هتصلي" : "✅ HatSally alarm set",
-        language === "ar" ? `سيوقظك المنبه الساعة ${alarmTime} يا ${userName}` : `Alarm will wake you at ${alarmTime}, ${userName}`
+        language === "ar"
+          ? `سيوقظك المنبه الساعة ${alarmTime} يا ${userName} - مربوط بساعة هاتفك وسيعمل حتى لو حذفته من الإشعارات`
+          : `Alarm will wake you at ${alarmTime}, ${userName} - tied to your phone's clock and keeps working after you dismiss it`
       );
     }
     if ("Notification" in window && isInstalled && Notification.permission === "granted") {
@@ -1815,6 +1885,8 @@ export default function Page() {
     }
     setSnoozeCount(prev => prev+1);
     stopAllSounds();
+    // إيقاف رنين النظام أيضاً - لا صوت خلفية أثناء الغفوة (يعود مع الرنين القادم)
+    void hatAlarmStop();
     if (verificationSpeechRef.current) {
       clearInterval(verificationSpeechRef.current);
       verificationSpeechRef.current = null;
@@ -2198,7 +2270,14 @@ export default function Page() {
         // (الخلل القديم كان يقتل منبه 7/14/30 يوم بعد أول رنين!)
         setIsAlarmActive(true);
         localStorage.setItem("hatsally-alarm-active", "true");
-        void scheduleNativeAlarm({ time: alarmTime, name: userName, days: selectedDays, lang: language });
+        // إيقاف رنين النظام (الإشعار المستمر + الصوت المتكرر) - اكتمل التحقق
+        void hatAlarmStop();
+        // إعادة جدولة المواعيد القادمة على ساعة الهاتف (أيام الغد)
+        void (async () => {
+          const ok = await hatAlarmSchedule({ time: alarmTime, name: userName, days: selectedDays, lang: language });
+          setHatAlarmArmed(ok);
+          if (!ok) void scheduleNativeAlarm({ time: alarmTime, name: userName, days: selectedDays, lang: language });
+        })();
         if (navigator.serviceWorker?.controller) {
           navigator.serviceWorker?.controller.postMessage({ type: "ALARM_COMPLETED", name: userName });
         }
@@ -2262,6 +2341,9 @@ export default function Page() {
     setCameraPermissionError(false);
     setCameraStreamActive(false);
     localStorage.setItem("hatsally-alarm-active", "false");
+    // إلغاء محرك المنبه الدقيق على النظام (المواعيد + خدمة الرنين)
+    setHatAlarmArmed(false);
+    void hatAlarmCancel();
     void cancelNativeAlarm();
     if (navigator.serviceWorker?.controller) {
       navigator.serviceWorker?.controller.postMessage({ type: "CLEAR_ALARM" });
@@ -2912,6 +2994,9 @@ export default function Page() {
                       {t.alarmSet} <span className="font-mono font-bold">{alarmTime}</span> - {t.willWake} {userName || (language === "ar" ? "أحمد" : "Ahmed")}
                     </p>
                     <p className="text-xs mt-1 opacity-90">⏱ {renderNextRing()}</p>
+                    {isNativeApp && hatAlarmArmed && (
+                      <p className="text-[11px] mt-1.5 font-bold">🔒 {t.clockBound}</p>
+                    )}
                   </div>
                 </div>
               )}

@@ -43,6 +43,25 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
+
+        <!-- خدمة رنين المنبه: إشعار مستمر + شاشة كاملة + صوت - لا تتوقف إلا بالتصوير -->
+        <service
+            android:name=".HatAlarmService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse|mediaPlayback">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Fajr alarm: keeps an ongoing notification and alarm sound ringing until the user completes photo verification" />
+        </service>
+
+        <!-- متلقي المواعيد الدقيقة: ينطلق من النظام في الموعد + يعيد الضبط بعد الإقلاع -->
+        <receiver
+            android:name=".HatAlarmReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
     </application>
 
     <!-- Permissions - صلاحيات منبه الفجر الذكي -->
@@ -67,4 +86,5 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
 </manifest>
