@@ -1,7 +1,8 @@
-// HatSally - هتصلي يعني هتصلي - Service Worker v6 Real Vision + Face Models
-// Features: Auto update, persistent alarm, real faucet/mat verification, offline face models
-const CACHE_NAME = "hatsally-v8-alarmfix";
-const APP_VERSION = "5.1.0-real-vision";
+// HatSally - هتصلي يعني هتصلي - Service Worker v9: Multi-Alarm Daily Repeat
+// المميزات: منبهات متعددة، كل منبه يرن في نفس موعده كل يوم، إشعار دائم لا يُحذف،
+//          تحديث تلقائي، عمل بدون إنترنت، نماذج كشف الوجه مخزّنة محلياً.
+const CACHE_NAME = "hatsally-v9-multi-alarm";
+const APP_VERSION = "6.0.0-multi-alarm";
 const PRECACHE_URLS = [
   "/",
   "/icons/icon-192.png",
@@ -19,10 +20,17 @@ const PRECACHE_URLS = [
 const DB_NAME = "hatSallyDB";
 const DB_VERSION = 1;
 const STORE_ALARMS = "alarms";
+/** سجل خاص يحفظ حالة المنبه الذي يرن الآن (لإعادة الإشعار عند حذفه) */
+const RINGING_ID = "__ringing__";
+/** مهلة اللحاق بالموعد بالدقائق - مطابقة لـ lib/schedule.ts */
+const RING_GRACE_MINUTES = 45;
+const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];
 
-console.log(`[SW ${APP_VERSION}] Loading...`);
+console.log(`[SW ${APP_VERSION}] Loading... (multi-alarm daily repeat)`);
 
+// ------------------------------------------------------------------
 // IndexedDB helpers
+// ------------------------------------------------------------------
 function openDB() {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
@@ -38,92 +46,133 @@ function openDB() {
   });
 }
 
-function saveAlarmToDB(alarmData) {
-  return openDB().then(db => {
+function txStore(mode, fn) {
+  return openDB().then((db) => {
     return new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE_ALARMS, "readwrite");
+      const tx = db.transaction(STORE_ALARMS, mode);
       const store = tx.objectStore(STORE_ALARMS);
-      const data = {
-        id: "main-alarm",
-        time: alarmData.time,
-        name: alarmData.name,
-        days: alarmData.days || [0,1,2,3,4,5,6],
-        duration: alarmData.duration || 'forever',
-        startDate: alarmData.startDate || new Date().toISOString(),
-        active: true,
-        stage: "idle",
-        createdAt: new Date().toISOString(),
-        version: APP_VERSION
-      };
-      store.put(data);
-      tx.oncomplete = () => resolve(data);
+      const result = fn(store, resolve, reject);
+      tx.oncomplete = () => resolve(result === undefined ? true : result);
       tx.onerror = () => reject(tx.error);
     });
   });
 }
 
-function getAlarmFromDB() {
-  return openDB().then(db => {
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE_ALARMS, "readonly");
-      const store = tx.objectStore(STORE_ALARMS);
-      const req = store.get("main-alarm");
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(req.error);
-    });
+/** حذف كل سجلات المنبهات (عدا سجل حالة الرنين) */
+function deleteAlarmsRecords() {
+  return txStore("readwrite", (store) => {
+    store.openCursor().onsuccess = (e) => {
+      const cursor = e.target.result;
+      if (cursor) {
+        if (cursor.value && cursor.value.id !== RINGING_ID) cursor.delete();
+        cursor.continue();
+      }
+    };
   });
 }
 
-function clearAlarmFromDB() {
-  return openDB().then(db => {
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE_ALARMS, "readwrite");
-      const store = tx.objectStore(STORE_ALARMS);
-      store.delete("main-alarm");
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
+/** كتابة قائمة المنبهات كاملة (تحل محل ما قبلها) */
+function saveAlarmsToDB(alarms, name) {
+  const list = Array.isArray(alarms) ? alarms : [];
+  // معاملتان منفصلتان: الحذف أولاً ثم الكتابة (حتى لا يحذف المؤشر السجلات الجديدة)
+  return deleteAlarmsRecords()
+    .then(() =>
+      txStore("readwrite", (store) => {
+        list.forEach((a, i) => {
+          const duration = a.duration !== undefined && a.duration !== null ? a.duration : a.durationDays;
+          store.put({
+            id: String(a.id || `alarm-${i}`),
+            label: a.label || "",
+            time: a.time || "05:00",
+            name: a.name || name || "",
+            days: Array.isArray(a.days) && a.days.length ? a.days : ALL_DAYS,
+            duration: duration === undefined || duration === null ? "forever" : duration,
+            startDate: a.startDate || null,
+            active: a.enabled !== false && a.active !== false,
+            lastFiredKey: a.lastFiredKey || null,
+            updatedAt: new Date().toISOString(),
+            version: APP_VERSION
+          });
+        });
+      })
+    )
+    .then(() => {
+      console.log(`[SW ${APP_VERSION}] Saved ${list.length} alarms to DB (daily repeat)`);
+      return list.length;
     });
+}
+
+function getAllAlarmsFromDB() {
+  return txStore("readonly", (store, resolve) => {
+    const req = store.getAll();
+    req.onsuccess = () => resolve((req.result || []).filter((r) => r && r.id !== RINGING_ID));
+  }).then((v) => (Array.isArray(v) ? v : []));
+}
+
+function putRecord(record) {
+  return txStore("readwrite", (store) => {
+    store.put(record);
   });
 }
 
-function updateAlarmStageInDB(stage) {
-  return getAlarmFromDB().then(alarm => {
-    if (!alarm) return;
-    alarm.stage = stage;
-    alarm.lastTrigger = new Date().toISOString();
-    return openDB().then(db => {
-      return new Promise((resolve, reject) => {
-        const tx = db.transaction(STORE_ALARMS, "readwrite");
-        const store = tx.objectStore(STORE_ALARMS);
-        store.put(alarm);
-        tx.oncomplete = () => resolve(alarm);
-        tx.onerror = () => reject(tx.error);
-      });
-    });
+function getRecord(id) {
+  return txStore("readonly", (store, resolve) => {
+    const req = store.get(id);
+    req.onsuccess = () => resolve(req.result || null);
   });
 }
 
+function clearAlarmsFromDB() {
+  return txStore("readwrite", (store) => {
+    store.openCursor().onsuccess = (e) => {
+      const cursor = e.target.result;
+      if (cursor) {
+        cursor.delete();
+        cursor.continue();
+      }
+    };
+  });
+}
+
+function setRingingState(state) {
+  return putRecord(Object.assign({ id: RINGING_ID, updatedAt: new Date().toISOString() }, state || {}));
+}
+
+function getRingingState() {
+  return getRecord(RINGING_ID);
+}
+
+// ------------------------------------------------------------------
 // Persistent notification options
-function getPersistentNotificationOptions(name, stage, lang) {
-  const isAr = lang === 'ar' || !lang;
+// ------------------------------------------------------------------
+function getPersistentNotificationOptions(name, stage, lang, extra) {
+  const isAr = lang === "ar" || !lang;
+  const label = (extra && extra.label) ? ` - ${extra.label}` : "";
+  const time = (extra && extra.time) ? ` (${extra.time})` : "";
   let title = "";
   let body = "";
-  let vibrate = [1000,500,1000,500,2000];
-  
+  let vibrate = [1000, 500, 1000, 500, 2000];
+
   if (stage === "ringing") {
-    title = isAr ? `🚨 استيقظ يا ${name}!` : `🚨 Wake up ${name}!`;
-    body = isAr ? `حان وقت الفجر يا ${name}! قم للصلاة - لن يتوقف إلا بالتصوير! 🔒` : `Fajr time ${name}! Won't stop until photos! 🔒`;
+    title = isAr ? `🚨 استيقظ يا ${name}!${label}` : `🚨 Wake up ${name}!${label}`;
+    body = isAr
+      ? `المنبه${time} يرن الآن يا ${name}! قم للصلاة - لن يتوقف إلا بالتصوير 🔒`
+      : `Alarm${time} is ringing ${name}! Get up for prayer - only photos stop it 🔒`;
   } else if (stage === "annoying") {
-    title = isAr ? `🔔 قم حالاً يا ${name}!` : `🔔 Get up now ${name}!`;
+    title = isAr ? `🔔 قم حالاً يا ${name}!${label}` : `🔔 Get up now ${name}!${label}`;
     body = isAr ? `جرس مزعج! استيقظ يا ${name}! لا يمكن إغلاقه! 🔒` : `Annoying alarm! Wake up ${name}! Cannot close! 🔒`;
-    vibrate = [500,200,500,200,1000,200,500];
+    vibrate = [500, 200, 500, 200, 1000, 200, 500];
   } else if (stage === "extreme") {
-    title = isAr ? `🚨🚨 استيقظ الآن يا ${name}!!` : `🚨🚨 Wake NOW ${name}!!`;
-    body = isAr ? `كابوس لا يحتمل! قم يا ${name}! صور الوضوء لإيقافه! 🔒 لا يمكن إغلاقه!` : `Unbearable nightmare! Get up ${name}! Photo verification only! 🔒 Cannot close!`;
-    vibrate = [300,100,300,100,300,100,1000];
+    title = isAr ? `🚨🚨 استيقظ الآن يا ${name}!!${label}` : `🚨🚨 Wake NOW ${name}!!${label}`;
+    body = isAr
+      ? `كابوس لا يحتمل! قم يا ${name}! صور الوضوء لإيقافه! 🔒 لا يمكن إغلاقه!`
+      : `Unbearable nightmare! Get up ${name}! Photo verification only! 🔒 Cannot close!`;
+    vibrate = [300, 100, 300, 100, 300, 100, 1000];
   } else if (stage === "verification") {
-    title = isAr ? `📷 يا ${name} صور الآن!` : `📷 ${name} photograph now!`;
-    body = isAr ? `الصوت مستمر! صور صنبور المياه والمصلاة ووجهك يا ${name}! 🔒` : `Sound continues! Photo tap, mat, face ${name}! 🔒`;
+    title = isAr ? `📷 يا ${name} صور الآن!${label}` : `📷 ${name} photograph now!${label}`;
+    body = isAr
+      ? `الصوت مستمر! صور صنبور المياه والمصلاة ووجهك يا ${name}! 🔒`
+      : `Sound continues! Photo tap, mat and face ${name}! 🔒`;
   }
 
   return {
@@ -137,7 +186,7 @@ function getPersistentNotificationOptions(name, stage, lang) {
       tag: "hatsally-persistent-alarm",
       renotify: true,
       silent: false,
-      data: { name, stage, persistent: true, timestamp: Date.now(), version: APP_VERSION },
+      data: Object.assign({ name, stage, persistent: true, timestamp: Date.now(), version: APP_VERSION }, extra || {}),
       actions: [
         { action: "wake", title: isAr ? "استيقظت ✓" : "I'm awake ✓" },
         { action: "open", title: isAr ? "افتح التطبيق 📲" : "Open App 📲" }
@@ -146,61 +195,121 @@ function getPersistentNotificationOptions(name, stage, lang) {
   };
 }
 
-function showPersistentAlarm(name, stage, lang) {
-  const { title, options } = getPersistentNotificationOptions(name, stage, lang);
+function showPersistentAlarm(name, stage, lang, extra) {
+  const { title, options } = getPersistentNotificationOptions(name, stage, lang, extra);
   return self.registration.showNotification(title, options);
 }
 
+// ------------------------------------------------------------------
+// محرك الرنين اليومي لكل المنبهات
+// ------------------------------------------------------------------
+function todayKey(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function startOfDay(d) {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+
+function isAlarmExpired(now, alarm) {
+  const duration = alarm.duration !== undefined ? alarm.duration : alarm.durationDays;
+  if (duration === "forever" || duration === undefined || duration === null) return false;
+  if (!alarm.startDate) return false;
+  const limit = typeof duration === "number" ? duration : parseInt(duration, 10);
+  if (isNaN(limit)) return false;
+  const diffDays = Math.floor((startOfDay(now).getTime() - startOfDay(new Date(alarm.startDate)).getTime()) / 86400000);
+  return diffDays >= limit;
+}
+
+/**
+ * الفحص الدوري: كل منبه مفعّل يرن في نفس موعده كل يوم (مرة واحدة في اليوم).
+ * - لم يحن الوقت → لا شيء
+ * - حان الوقت (أو فات ضمن 45 دقيقة) ولم يرنّ اليوم → رنين + تعليم اليوم
+ * - فات أكثر من المهلة → يُعلَّم اليوم بصمت (لحاق بدون إزعاج متأخر)
+ * - انتهت مدته → يُوقف
+ */
 function checkAndTriggerAlarm() {
-  return getAlarmFromDB().then(alarm => {
-    if (!alarm || !alarm.active) return;
-    
-    if (alarm.duration !== 'forever' && alarm.startDate) {
-      const start = new Date(alarm.startDate);
-      const now = new Date();
-      const diffDays = Math.floor((now.getTime() - start.getTime()) / (1000*60*60*24));
-      const limit = typeof alarm.duration === 'number' ? alarm.duration : parseInt(alarm.duration);
-      if (!isNaN(limit) && diffDays >= limit) {
-        return clearAlarmFromDB().then(() => {
-          console.log(`[SW ${APP_VERSION}] Alarm expired after`, limit, "days");
-        });
-      }
-    }
-
-    const today = new Date().getDay();
-    if (alarm.days && alarm.days.length > 0 && !alarm.days.includes(today)) {
-      return;
-    }
-
+  return getAllAlarmsFromDB().then((alarms) => {
+    if (!alarms || alarms.length === 0) return;
     const now = new Date();
-    const [alarmH, alarmM] = alarm.time.split(":").map(Number);
-    const nowH = now.getHours();
-    const nowM = now.getMinutes();
-    
-    const timeDiff = Math.abs((nowH*60+nowM) - (alarmH*60+alarmM));
-    const isTimeMatch = (nowH === alarmH && nowM === alarmM) || (timeDiff <= 1 && alarm.stage === "idle");
-    
-    if (isTimeMatch) {
-      if (alarm.lastTrigger) {
-        const last = new Date(alarm.lastTrigger);
-        const diffMinutes = (now.getTime() - last.getTime()) / (1000*60);
-        if (diffMinutes < 4 && alarm.stage !== "idle") {
-          return;
-        }
+    const key = todayKey(now);
+    const due = [];
+    const writes = [];
+
+    alarms.forEach((alarm) => {
+      if (!alarm || !alarm.active) return;
+
+      if (isAlarmExpired(now, alarm)) {
+        writes.push(Object.assign({}, alarm, { active: false, updatedAt: now.toISOString() }));
+        console.log(`[SW ${APP_VERSION}] Alarm ${alarm.id} expired - deactivated`);
+        return;
       }
-      
-      console.log(`[SW ${APP_VERSION}] 🔔 Triggering persistent alarm!`, alarm.time, "for", alarm.name);
-      return updateAlarmStageInDB("ringing").then(() => {
-        return showPersistentAlarm(alarm.name, "ringing", "ar");
-      }).then(() => {
-        return self.clients.matchAll().then(clients => {
-          clients.forEach(client => {
-            client.postMessage({ type: "ALARM_TRIGGERED", time: alarm.time, name: alarm.name, stage: "ringing", version: APP_VERSION });
+
+      const days = Array.isArray(alarm.days) && alarm.days.length ? alarm.days : ALL_DAYS;
+      if (!days.includes(now.getDay())) return; // ليس يومه
+      if (alarm.lastFiredKey === key) return;   // رنّ اليوم already
+
+      const parts = String(alarm.time || "05:00").split(":");
+      const h = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10);
+      if (isNaN(h) || isNaN(m)) return;
+      const scheduled = new Date(now);
+      scheduled.setHours(h, m, 0, 0);
+      if (now.getTime() < scheduled.getTime()) return; // لم يحن بعد
+
+      const lateMin = (now.getTime() - scheduled.getTime()) / 60000;
+      if (lateMin > RING_GRACE_MINUTES) {
+        writes.push(Object.assign({}, alarm, { lastFiredKey: key }));
+        return; // فات كثيراً: لا رنين متأخر مزعج
+      }
+      due.push({ alarm, scheduled });
+    });
+
+    const flushWrites = () =>
+      writes.length === 0 ? Promise.resolve() : Promise.all(writes.map((w) => putRecord(w)));
+
+    if (due.length === 0) return flushWrites();
+
+    due.sort((a, b) => a.scheduled.getTime() - b.scheduled.getTime());
+    const first = due[0].alarm;
+    // كل المنبهات التي حان موعدها الآن تُعلَّم معاً (استيقاظ واحد يكفي عنها)
+    due.forEach((d) => writes.push(Object.assign({}, d.alarm, { lastFiredKey: key })));
+
+    console.log(`[SW ${APP_VERSION}] 🔔 Ringing alarm ${first.id} at ${first.time} for ${first.name} (daily repeat)`);
+
+    return flushWrites()
+      .then(() =>
+        setRingingState({
+          alarmId: first.id,
+          name: first.name,
+          label: first.label,
+          time: first.time,
+          stage: "ringing",
+          lastTrigger: now.toISOString()
+        })
+      )
+      .then(() => showPersistentAlarm(first.name || "بطل الفجر", "ringing", "ar", { alarmId: first.id, label: first.label, time: first.time }))
+      .then(() =>
+        self.clients.matchAll().then((clients) => {
+          clients.forEach((client) => {
+            client.postMessage({
+              type: "ALARM_TRIGGERED",
+              alarmId: first.id,
+              time: first.time,
+              label: first.label,
+              name: first.name,
+              stage: "ringing",
+              version: APP_VERSION
+            });
           });
-        });
-      });
-    }
-  }).catch(err => console.error(`[SW ${APP_VERSION}] check error`, err));
+        })
+      );
+  }).catch((err) => console.error(`[SW ${APP_VERSION}] check error`, err));
 }
 
 let alarmCheckInterval = null;
@@ -208,20 +317,20 @@ function startPeriodicCheck() {
   if (alarmCheckInterval) clearInterval(alarmCheckInterval);
   alarmCheckInterval = setInterval(() => {
     checkAndTriggerAlarm();
-  }, 60 * 1000);
+  }, 30 * 1000);
   checkAndTriggerAlarm();
-  console.log(`[SW ${APP_VERSION}] Periodic alarm check started every 60s`);
+  console.log(`[SW ${APP_VERSION}] Periodic alarm check started every 30s`);
 }
 
 function notifyAllClientsAboutUpdate() {
-  return self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(clients => {
+  return self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
     console.log(`[SW ${APP_VERSION}] Notifying ${clients.length} clients about update`);
-    clients.forEach(client => {
-      client.postMessage({ 
-        type: "APP_UPDATED", 
-        version: APP_VERSION, 
-        message: "تم تحديث التطبيق تلقائياً",
-        messageEn: "App updated automatically",
+    clients.forEach((client) => {
+      client.postMessage({
+        type: "APP_UPDATED",
+        version: APP_VERSION,
+        message: "تم تحديث التطبيق تلقائياً - منبهات متعددة وكل منبه يرن كل يوم",
+        messageEn: "App updated automatically - multiple alarms, each ringing daily",
         timestamp: Date.now()
       });
     });
@@ -230,7 +339,6 @@ function notifyAllClientsAboutUpdate() {
 
 self.addEventListener("install", (event) => {
   console.log(`[SW ${APP_VERSION}] Installing - Auto update mode...`);
-  // Force immediate activation for auto-update
   self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
@@ -256,6 +364,7 @@ self.addEventListener("activate", (event) => {
             console.log(`[SW ${APP_VERSION}] Deleting old cache:`, cacheName);
             return caches.delete(cacheName);
           }
+          return Promise.resolve();
         })
       );
     }).then(() => {
@@ -263,18 +372,14 @@ self.addEventListener("activate", (event) => {
       return self.clients.claim();
     }).then(() => {
       startPeriodicCheck();
-      // Notify all clients about the update - this is key for auto-update message
       return notifyAllClientsAboutUpdate();
     }).then(() => {
-      // Show update notification even if app closed (if permission granted)
-      return self.registration.getNotifications({ tag: "hatsally-update" }).then(existing => {
-        existing.forEach(n => n.close());
+      return self.registration.getNotifications({ tag: "hatsally-update" }).then((existing) => {
+        existing.forEach((n) => n.close());
       }).then(() => {
-        // Check if we should show update notification
-        // We show it always on activation to inform users
         console.log(`[SW ${APP_VERSION}] Showing update notification`);
         return self.registration.showNotification("🎉 تم تحديث هتصلي! 🔄", {
-          body: "التطبيق تم تحديثه تلقائياً إلى الإصدار الجديد مع صوت رجل محسن وذكاء اصطناعي أفضل! افتح التطبيق الآن.",
+          body: "منبهات متعددة الآن! كل منبه يرن في نفس موعده كل يوم - افتح التطبيق وأضف منبهاتك.",
           icon: "/icons/icon-192x192.png",
           badge: "/icons/icon-192x192.png",
           tag: "hatsally-update",
@@ -285,11 +390,10 @@ self.addEventListener("activate", (event) => {
             { action: "open", title: "افتح التطبيق 📲" },
             { action: "dismiss", title: "حسناً ✓" }
           ]
-        }).catch(err => console.log("Update notification failed (no permission):", err));
+        }).catch((err) => console.log("Update notification failed (no permission):", err));
       });
     }).then(() => {
-      // Also try to broadcast to all clients again after a short delay to ensure delivery
-      return new Promise(resolve => setTimeout(resolve, 1000)).then(() => notifyAllClientsAboutUpdate());
+      return new Promise((resolve) => setTimeout(resolve, 1000)).then(() => notifyAllClientsAboutUpdate());
     })
   );
 });
@@ -300,7 +404,7 @@ self.addEventListener("fetch", (event) => {
 
   if (request.method !== "GET" || url.protocol === "chrome-extension:") return;
 
-  // For navigation requests (HTML), always try network first to get latest version - crucial for auto-updates
+  // صفحات HTML: الشبكة أولاً دائماً (ضروري للتحديث التلقائي)
   if (request.mode === "navigate" || request.destination === "document") {
     event.respondWith(
       fetch(request)
@@ -318,11 +422,10 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // For other assets, cache-first with network fallback
+  // باقي الأصول: الكاش أولاً مع تحديث في الخلفية
   event.respondWith(
     caches.match(request).then((cached) => {
       if (cached) {
-        // Update cache in background for auto-update
         fetch(request).then((networkResponse) => {
           if (networkResponse && networkResponse.status === 200) {
             caches.open(CACHE_NAME).then((cache) => cache.put(request, networkResponse));
@@ -347,44 +450,40 @@ self.addEventListener("fetch", (event) => {
 
 self.addEventListener("push", (event) => {
   const data = event.data ? event.data.json() : {};
-  // Check if it's an update push
   if (data.type === "APP_UPDATE") {
     const title = data.title || "🎉 تم تحديث هتصلي! 🔄";
     const options = {
-      body: data.body || `الإصدار الجديد ${data.version || APP_VERSION} متاح الآن! صوت رجل محسن وذكاء اصطناعي أفضل.`,
+      body: data.body || `الإصدار الجديد ${data.version || APP_VERSION} متاح الآن! منبهات متعددة وكل منبه يرن كل يوم.`,
       icon: "/icons/icon-192x192.png",
       badge: "/icons/icon-192x192.png",
       vibrate: [200, 100, 200],
       tag: "hatsally-update",
       requireInteraction: false,
-      data: { ...data, version: APP_VERSION, type: "update" },
+      data: Object.assign({}, data, { version: APP_VERSION, type: "update" }),
       actions: [
         { action: "open", title: "افتح التطبيق 📲" },
         { action: "dismiss", title: "حسناً ✓" }
       ]
     };
     event.waitUntil(self.registration.showNotification(title, options));
-    // Also trigger update check
-    event.waitUntil(
-      self.registration.update().then(() => notifyAllClientsAboutUpdate())
-    );
+    event.waitUntil(self.registration.update().then(() => notifyAllClientsAboutUpdate()));
     return;
   }
 
-  const title = data.title || "هتصلي يعني هتصلي - وقت الفجر! 🕌";
+  const title = data.title || "هتصلي يعني هتصلي - وقت الصلاة! 🕌";
   const options = {
-    body: data.body || `استيقظ يا ${data.name || "بطل الفجر"}! حان وقت صلاة الفجر - لا يمكن إغلاقه إلا بالتصوير 🔒`,
+    body: data.body || `استيقظ يا ${data.name || "بطل الفجر"}! حان موعد المنبه - لا يمكن إغلاقه إلا بالتصوير 🔒`,
     icon: "/icons/icon-192x192.png",
     badge: "/icons/icon-192x192.png",
     vibrate: [1000, 500, 1000, 500, 2000, 500, 1000],
     requireInteraction: true,
     tag: "hatsally-persistent-alarm",
     renotify: true,
-    data: { ...data, persistent: true, version: APP_VERSION },
+    data: Object.assign({}, data, { persistent: true, version: APP_VERSION }),
     actions: [
       { action: "wake", title: "استيقظت ✓" },
-      { action: "open", title: "افتح التطبيق 📲" },
-    ],
+      { action: "open", title: "افتح التطبيق 📲" }
+    ]
   };
   event.waitUntil(self.registration.showNotification(title, options));
 });
@@ -392,10 +491,9 @@ self.addEventListener("push", (event) => {
 self.addEventListener("notificationclick", (event) => {
   const data = event.notification.data || {};
   event.notification.close();
-  
+
   if (data.type === "update") {
     if (event.action === "dismiss") return;
-    // For update notification, open app
     event.waitUntil(
       clients.matchAll({ type: "window" }).then((clientList) => {
         for (const client of clientList) {
@@ -409,13 +507,19 @@ self.addEventListener("notificationclick", (event) => {
     );
     return;
   }
-  
+
   if (event.action === "wake" || event.action === "open") {
     event.waitUntil(
       clients.matchAll({ type: "window" }).then((clientList) => {
         for (const client of clientList) {
           if (client.url.includes(self.location.origin) && "focus" in client) {
-            client.postMessage({ type: "NOTIFICATION_WAKE", name: data.name, stage: data.stage, version: APP_VERSION });
+            client.postMessage({
+              type: "NOTIFICATION_WAKE",
+              alarmId: data.alarmId,
+              name: data.name,
+              stage: data.stage,
+              version: APP_VERSION
+            });
             return client.focus();
           }
         }
@@ -429,7 +533,13 @@ self.addEventListener("notificationclick", (event) => {
           if (client.url.includes(self.location.origin) && "focus" in client) {
             // الضغط على جسم تنبيه المنبه يوقظ الصفحة رنيناً (وليس مجرد تركيز صامت)
             if (data && data.persistent === true) {
-              client.postMessage({ type: "ALARM_TRIGGERED", name: data.name, stage: data.stage || "ringing", version: APP_VERSION });
+              client.postMessage({
+                type: "ALARM_TRIGGERED",
+                alarmId: data.alarmId,
+                name: data.name,
+                stage: data.stage || "ringing",
+                version: APP_VERSION
+              });
             }
             return client.focus();
           }
@@ -442,31 +552,38 @@ self.addEventListener("notificationclick", (event) => {
 
 self.addEventListener("notificationclose", (event) => {
   const data = event.notification.data || {};
-  // Don't resurrect update notifications
   if (data.type === "update") return;
-  
+
   console.log(`[SW ${APP_VERSION}] Notification closed/dismissed, data:`, data);
-  
+
   if (data.persistent && event.notification.tag === "hatsally-persistent-alarm") {
     event.waitUntil(
-      getAlarmFromDB().then(alarm => {
-        if (!alarm || !alarm.active) {
-          return;
-        }
+      getRingingState().then((ringing) => {
         const activeStages = ["ringing", "annoying", "extreme", "verification"];
-        if (activeStages.includes(alarm.stage) || activeStages.includes(data.stage)) {
-          console.log(`[SW ${APP_VERSION}] 🔒 Resurrecting alarm notification - cannot dismiss!`);
-          return new Promise(resolve => setTimeout(resolve, 2000)).then(() => {
-            const stageToShow = alarm.stage !== "idle" ? alarm.stage : (data.stage || "ringing");
-            return showPersistentAlarm(alarm.name || data.name || "بطل الفجر", stageToShow, "ar");
-          }).then(() => {
-            return self.clients.matchAll().then(clients => {
-              clients.forEach(client => {
-                client.postMessage({ type: "NOTIFICATION_RESURRECTED", name: alarm.name, stage: alarm.stage, version: APP_VERSION });
+        const stage = ringing && ringing.stage ? ringing.stage : data.stage;
+        if (!ringing || !activeStages.includes(stage)) return;
+        console.log(`[SW ${APP_VERSION}] 🔒 Resurrecting alarm notification - cannot dismiss!`);
+        return new Promise((resolve) => setTimeout(resolve, 2000))
+          .then(() =>
+            showPersistentAlarm(ringing.name || data.name || "بطل الفجر", stage, "ar", {
+              alarmId: ringing.alarmId || data.alarmId,
+              label: ringing.label || data.label,
+              time: ringing.time || data.time
+            })
+          )
+          .then(() =>
+            self.clients.matchAll().then((clients) => {
+              clients.forEach((client) => {
+                client.postMessage({
+                  type: "NOTIFICATION_RESURRECTED",
+                  alarmId: ringing.alarmId,
+                  name: ringing.name,
+                  stage,
+                  version: APP_VERSION
+                });
               });
-            });
-          });
-        }
+            })
+          );
       })
     );
   }
@@ -488,76 +605,98 @@ self.addEventListener("periodicsync", (event) => {
 
 self.addEventListener("message", (event) => {
   if (!event.data) return;
-  
-  if (event.data.type === "SET_ALARM") {
-    const { time, name, days, duration, startDate } = event.data;
-    console.log(`[SW ${APP_VERSION}] Alarm set for ${time} for ${name}, days:`, days, "duration:", duration);
+
+  // حفظ قائمة المنبهات كاملة (كل منبه يرن في نفس موعده كل يوم)
+  if (event.data.type === "SET_ALARMS") {
+    const alarms = event.data.alarms || [];
+    const name = event.data.name || "";
+    console.log(`[SW ${APP_VERSION}] SET_ALARMS: ${alarms.length} alarms for ${name}`);
     event.waitUntil(
-      saveAlarmToDB({ time, name, days, duration, startDate }).then(() => {
+      saveAlarmsToDB(alarms, name).then(() => {
         startPeriodicCheck();
-        if (self.registration) {
-          return self.registration.showNotification("✅ تم ضبط منبه هتصلي الدائم 🔒", {
-            body: `سيوقظك المنبه الساعة ${time} يا ${name} - يعمل حتى بعد إغلاق التطبيق وحذف الإشعار! ${days ? days.length+' أيام' : ''} - ${duration==='forever' ? 'دائم' : duration+' يوم'} - الإصدار ${APP_VERSION}`,
+        // إشعار التأكيد يظهر فقط عند الحفظ الصريح من المستخدم (لا مع كل مزامنة صامتة)
+        if (event.data.notify !== true) return;
+        const active = alarms.filter((a) => a.enabled !== false);
+        if (active.length === 0) return;
+        const summary = active.map((a) => `${a.time}${a.label ? " " + a.label : ""}`).join(" | ");
+        return self.registration
+          .showNotification("✅ تم ضبط منبهات هتصلي 🔒", {
+            body: `${active.length} منبه يعمل: ${summary} - كل منبه يرن في نفس موعده كل يوم حتى لو أُغلق التطبيق`,
             icon: "/icons/icon-192x192.png",
             badge: "/icons/icon-192x192.png",
             tag: "hatsally-confirmation",
             vibrate: [200, 100, 200],
-            requireInteraction: false,
-          }).catch(() => {});
-        }
-      })
-    );
-  }
-  
-  if (event.data.type === "CLEAR_ALARM") {
-    console.log(`[SW ${APP_VERSION}] Clearing alarm from DB`);
-    event.waitUntil(
-      clearAlarmFromDB().then(() => {
-        if (alarmCheckInterval) clearInterval(alarmCheckInterval);
-        return self.registration.getNotifications({ tag: "hatsally-persistent-alarm" }).then(notifications => {
-          notifications.forEach(n => n.close());
-        });
-      })
-    );
-  }
-  
-  if (event.data.type === "TRIGGER_ALARM") {
-    const { name, stage } = event.data;
-    console.log(`[SW ${APP_VERSION}] Trigger alarm message stage: ${stage}`);
-    event.waitUntil(
-      updateAlarmStageInDB(stage || "ringing").then(() => {
-        return showPersistentAlarm(name || "بطل الفجر", stage || "ringing", "ar");
+            requireInteraction: false
+          })
+          .catch(() => {});
       })
     );
   }
 
-  if (event.data.type === "ALARM_COMPLETED") {
-    console.log(`[SW ${APP_VERSION}] Alarm completed - clearing persistent`);
+  // توافق مع الرسالة القديمة (منبه واحد)
+  if (event.data.type === "SET_ALARM") {
+    const { time, name, days, duration, startDate } = event.data;
+    console.log(`[SW ${APP_VERSION}] Legacy SET_ALARM ${time} for ${name}`);
     event.waitUntil(
-      getAlarmFromDB().then(alarm => {
-        if (alarm) {
-          alarm.stage = "completed";
-          if (alarm.duration === 'forever' || alarm.duration > 0) {
-            alarm.active = true;
-            alarm.stage = "idle";
-          } else {
-            alarm.active = false;
-          }
-          return openDB().then(db => {
-            return new Promise((resolve, reject) => {
-              const tx = db.transaction(STORE_ALARMS, "readwrite");
-              const store = tx.objectStore(STORE_ALARMS);
-              store.put(alarm);
-              tx.oncomplete = () => resolve();
-              tx.onerror = () => reject(tx.error);
-            });
-          });
-        }
+      putRecord({
+        id: "main-alarm",
+        label: "",
+        time,
+        name,
+        days: days || ALL_DAYS,
+        duration: duration || "forever",
+        startDate: startDate || new Date().toISOString(),
+        active: true,
+        lastFiredKey: null,
+        updatedAt: new Date().toISOString(),
+        version: APP_VERSION
       }).then(() => {
-        return self.registration.getNotifications({ tag: "hatsally-persistent-alarm" }).then(notifications => {
-          notifications.forEach(n => n.close());
+        startPeriodicCheck();
+        return self.registration
+          .showNotification("✅ تم ضبط منبه هتصلي الدائم 🔒", {
+            body: `سيوقظك المنبه الساعة ${time} يا ${name} كل يوم - يعمل حتى بعد إغلاق التطبيق وحذف الإشعار!`,
+            icon: "/icons/icon-192x192.png",
+            badge: "/icons/icon-192x192.png",
+            tag: "hatsally-confirmation",
+            vibrate: [200, 100, 200],
+            requireInteraction: false
+          })
+          .catch(() => {});
+      })
+    );
+  }
+
+  if (event.data.type === "CLEAR_ALARM" || event.data.type === "CLEAR_ALARMS") {
+    console.log(`[SW ${APP_VERSION}] Clearing alarms from DB`);
+    event.waitUntil(
+      clearAlarmsFromDB().then(() => {
+        if (alarmCheckInterval) clearInterval(alarmCheckInterval);
+        alarmCheckInterval = null;
+        return self.registration.getNotifications({ tag: "hatsally-persistent-alarm" }).then((notifications) => {
+          notifications.forEach((n) => n.close());
         });
       })
+    );
+  }
+
+  if (event.data.type === "TRIGGER_ALARM") {
+    const { name, stage, alarmId, label, time } = event.data;
+    console.log(`[SW ${APP_VERSION}] Trigger alarm message stage: ${stage} alarm: ${alarmId}`);
+    event.waitUntil(
+      setRingingState({ alarmId, name, label, time, stage: stage || "ringing", lastTrigger: new Date().toISOString() }).then(() =>
+        showPersistentAlarm(name || "بطل الفجر", stage || "ringing", "ar", { alarmId, label, time })
+      )
+    );
+  }
+
+  if (event.data.type === "ALARM_COMPLETED") {
+    console.log(`[SW ${APP_VERSION}] Alarm completed - clearing ringing state`);
+    event.waitUntil(
+      setRingingState({ stage: "idle", completedAt: new Date().toISOString() }).then(() =>
+        self.registration.getNotifications({ tag: "hatsally-persistent-alarm" }).then((notifications) => {
+          notifications.forEach((n) => n.close());
+        })
+      ).then(() => startPeriodicCheck())
     );
   }
 
@@ -571,9 +710,12 @@ self.addEventListener("message", (event) => {
   }
 
   if (event.data.type === "GET_VERSION") {
-    event.ports && event.ports[0] && event.ports[0].postMessage({ version: APP_VERSION, cache: CACHE_NAME });
-    // Also broadcast via client postMessage
-    event.source && event.source.postMessage && event.source.postMessage({ type: "VERSION_INFO", version: APP_VERSION, cache: CACHE_NAME });
+    if (event.ports && event.ports[0]) {
+      event.ports[0].postMessage({ version: APP_VERSION, cache: CACHE_NAME });
+    }
+    if (event.source && event.source.postMessage) {
+      event.source.postMessage({ type: "VERSION_INFO", version: APP_VERSION, cache: CACHE_NAME });
+    }
   }
 
   if (event.data.type === "CHECK_FOR_UPDATES") {
@@ -589,9 +731,7 @@ self.addEventListener("message", (event) => {
   if (event.data.type === "FORCE_UPDATE") {
     console.log(`[SW ${APP_VERSION}] Force update requested`);
     event.waitUntil(
-      caches.delete(CACHE_NAME).then(() => {
-        return self.registration.update();
-      }).then(() => self.skipWaiting())
+      caches.delete(CACHE_NAME).then(() => self.registration.update()).then(() => self.skipWaiting())
     );
   }
 
@@ -599,4 +739,4 @@ self.addEventListener("message", (event) => {
 });
 
 startPeriodicCheck();
-console.log(`[SW ${APP_VERSION}] Service Worker loaded - Auto update enabled for all users!`);
+console.log(`[SW ${APP_VERSION}] Service Worker loaded - multi-alarm daily repeat enabled!`);
