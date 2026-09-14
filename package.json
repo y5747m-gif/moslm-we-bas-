@@ -1,8 +1,8 @@
 {
   "name": "hatsally-fajr-alarm",
-  "version": "5.1.0",
+  "version": "6.0.0",
   "private": true,
-  "description": "هتصلي يعني هتصلي - منبه الفجر الذكي (PWA + تطبيق أندرويد APK أصلي)",
+  "description": "هتصلي يعني هتصلي - تطبيق منبهات ذكي مستقل: منبهات متعددة يرن كل منها في نفس موعده كل يوم (PWA + تطبيق أندرويد APK أصلي) - تطوير Yaseen amr abd el rahem",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -15,7 +15,8 @@
     "build:apk": "CAPACITOR_EXPORT=true next build && rm -f out/downloads/hatsally.apk && npx cap sync android",
     "apk:assemble": "cd android && ./gradlew assembleDebug",
     "test:vision": "npx tsx scripts/vision-test.ts",
-    "test:alarm": "npx tsx scripts/schedule-test.ts"
+    "test:alarm": "npx tsx scripts/schedule-test.ts",
+    "test:alarms": "npx tsx scripts/alarms-test.ts"
   },
   "dependencies": {
     "@capacitor-community/text-to-speech": "^8.0.2",

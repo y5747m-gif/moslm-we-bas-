@@ -36,6 +36,8 @@ export default function PermissionsPanel({ t, dark, rtl, compact }: Props) {
   }, []);
 
   useEffect(() => {
+    // أول فحص للأذونات يقرأ حالة النظام ثم يعرضها (لا قيمة محفوظة مسبقاً)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void refresh();
     // إعادة الفحص عند العودة من شاشة إعدادات النظام
     const onVis = () => {

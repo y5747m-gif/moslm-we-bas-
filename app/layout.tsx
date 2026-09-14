@@ -2,10 +2,24 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "هتصلي يعني هتصلي - منبه الفجر الذكي",
-  description: "تم تصميم هذا البرنامج لإيقاظك لصلاة الفجر وجميع الصلوات فلا تنسانا من صالح دعائكم 🤍 - منبه ذكي يناديك باسمك بصوت رجل، يفحص الصور بالذكاء الاصطناعي، يعمل بدون إنترنت، يثبت كتطبيق أصلي",
-  keywords: ["هتصلي يعني هتصلي", "منبه", "منبه الفجر", "منبه إسلامي", "صلاة الفجر", "استيقاظ", "PWA", "تطبيق منبه"],
-  authors: [{ name: "HatSally Team" }],
+  title: "هتصلي يعني هتصلي - تطبيق المنبهات الذكية",
+  description:
+    "تم تصميم هذا البرنامج لإيقاظك لصلاة الفجر وجميع الصلوات فلا تنسانا من صالح دعائكم 🤍 - تطبيق مستقل بهويته الخاصة: منبهات متعددة بلا حد، كل منبه يرن في نفس موعده كل يوم، يناديك باسمك بصوت رجل، يفحص الصور بالذكاء الاصطناعي، ويعمل بدون إنترنت. تطوير: Yaseen amr abd el rahem",
+  keywords: [
+    "هتصلي يعني هتصلي",
+    "منبه",
+    "منبهات متعددة",
+    "منبه كل يوم",
+    "منبه الفجر",
+    "منبه إسلامي",
+    "صلاة الفجر",
+    "استيقاظ",
+    "PWA",
+    "تطبيق منبه",
+    "Yaseen amr abd el rahem",
+  ],
+  authors: [{ name: "Yaseen amr abd el rahem" }],
+  creator: "Yaseen amr abd el rahem",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
@@ -22,8 +36,9 @@ export const metadata: Metadata = {
     telephone: false,
   },
   openGraph: {
-    title: "هتصلي يعني هتصلي - منبه الفجر الذكي",
-    description: "تم تصميم هذا البرنامج لإيقاظك لصلاة الفجر وجميع الصلوات فلا تنسانا من صالح دعائكم 🤍 - يثبت كتطبيق أصلي يعمل بدون إنترنت",
+    title: "هتصلي يعني هتصلي - تطبيق المنبهات الذكية",
+    description:
+      "منبهات متعددة بلا حد، كل منبه يرن في نفس موعده كل يوم - تطبيق مستقل يعمل بدون إنترنت. تطوير: Yaseen amr abd el rahem",
     type: "website",
     locale: "ar_SA",
     siteName: "هتصلي يعني هتصلي",
@@ -90,7 +105,7 @@ export default function RootLayout({
                 window.addEventListener('load', () => {
                   navigator.serviceWorker.register('/sw.js', { scope: '/' })
                     .then(reg => {
-                      console.log('✅ HatSally SW v5 auto-update registered:', reg.scope, 'Version: 5.0.0-auto-male-voice');
+                      console.log('✅ HatSally SW v6 auto-update registered:', reg.scope, 'Version: 6.0.0-multi-alarm');
                       // Check for updates immediately and every 30 minutes
                       function checkForUpdates() {
                         reg.update().then(() => {
@@ -120,7 +135,7 @@ export default function RootLayout({
                             // Tell new SW to skip waiting and activate immediately
                             newWorker.postMessage({ type: 'SKIP_WAITING' });
                             // Show update message via custom event
-                            window.dispatchEvent(new CustomEvent('sw-update-found', { detail: { version: '5.0.0' } }));
+                            window.dispatchEvent(new CustomEvent('sw-update-found', { detail: { version: '6.0.0' } }));
                           }
                         });
                       });
@@ -148,7 +163,7 @@ export default function RootLayout({
                     if (Notification.permission === 'granted') {
                       try {
                         new Notification('🎉 تم تحديث هتصلي! 🔄', {
-                          body: 'التطبيق تم تحديثه تلقائياً إلى الإصدار الجديد مع صوت رجل محسن! افتح التطبيق الآن.',
+                          body: 'التطبيق تم تحديثه تلقائياً: منبهات متعددة وكل منبه يرن في نفس موعده كل يوم! افتح التطبيق الآن.',
                           icon: '/icons/icon-192.png',
                           tag: 'hatsally-update-page',
                           requireInteraction: false
@@ -183,7 +198,7 @@ export default function RootLayout({
                     console.log('✅ App just auto-updated for user!');
                     setTimeout(() => {
                       localStorage.removeItem('hatsally-just-updated');
-                      window.dispatchEvent(new CustomEvent('app-just-updated', { detail: { version: '5.0.0' } }));
+                      window.dispatchEvent(new CustomEvent('app-just-updated', { detail: { version: '6.0.0' } }));
                     }, 1000);
                   } else {
                     localStorage.removeItem('hatsally-just-updated');

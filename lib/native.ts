@@ -151,6 +151,81 @@ function jsDayToCapacitorWeekday(jsDay: number): number {
   return jsDay + 1;
 }
 
+/** معرّف تنبيه ثابت لمنبه + يوم (يبقى نفسه بين الجلسات) */
+function notificationId(nid: number, dayIndex: number): number {
+  const base = Number.isInteger(nid) && nid > 0 ? nid : 1001;
+  return base * 10 + (dayIndex % 7);
+}
+
+/**
+ * جدولة مجموعة منبهات أصلية - كل منبه يرن في نفس موعده كل يوم
+ * (تنبيه متكرر لكل يوم مختار، ولهذا لا يحتاج إعادة ضبط يومية).
+ */
+export async function scheduleNativeAlarms(opts: {
+  alarms: Array<{ id: string; nid: number; label?: string; time: string; days: number[]; enabled: boolean }>;
+  name: string;
+  lang: "ar" | "en";
+}): Promise<boolean> {
+  if (!isNativeApp()) return false;
+  try {
+    const { LocalNotifications } = await import("@capacitor/local-notifications");
+
+    // إعادة الجدولة الكاملة: أُلغي كل ما هو قديم ثم أُجدول القائمة الحالية
+    await cancelNativeAlarm();
+
+    const active = (opts.alarms || []).filter((a) => a.enabled !== false);
+    if (active.length === 0) return true;
+
+    const notifications = active.flatMap((alarm) => {
+      const [hStr, mStr] = (alarm.time || "05:00").split(":");
+      const hour = Math.max(0, Math.min(23, parseInt(hStr || "5", 10)));
+      const minute = Math.max(0, Math.min(59, parseInt(mStr || "0", 10)));
+      const days = alarm.days && alarm.days.length > 0 ? alarm.days : [0, 1, 2, 3, 4, 5, 6];
+      const label = (alarm.label || "").trim();
+      const whatAr = label ? ` (${label})` : "";
+      const whatEn = label ? ` (${label})` : "";
+      const title =
+        opts.lang === "ar"
+          ? `🚨 استيقظ يا ${opts.name}!${whatAr}`
+          : `🚨 Wake up ${opts.name}!${whatEn}`;
+      const body =
+        opts.lang === "ar"
+          ? `المنبه ${alarm.time} - حان الوقت يا ${opts.name}! افتح التطبيق، لن يتوقف إلا بالتصوير 🔒`
+          : `${alarm.time} alarm - time is up ${opts.name}! Open the app, only photo verification stops it 🔒`;
+
+      return days.map((d, i) => ({
+        id: notificationId(alarm.nid, i),
+        title,
+        body,
+        schedule: {
+          // on + repeats = نفس الموعد كل أسبوع في هذا اليوم (كل يوم إن كانت الأيام السبعة)
+          on: { hour, minute, weekday: jsDayToCapacitorWeekday(d) },
+          repeats: true,
+          allowWhileIdle: true,
+        },
+        smallIcon: "ic_launcher",
+        largeIcon: "ic_launcher",
+        ongoing: true,
+        autoCancel: false,
+        extra: { type: "fajr-alarm", alarmId: alarm.id, day: d, time: alarm.time },
+      }));
+    });
+
+    await LocalNotifications.schedule({ notifications } as never);
+    console.log(
+      "🔔 [Native] scheduled",
+      notifications.length,
+      "notifications for",
+      active.length,
+      "alarms (daily repeat)"
+    );
+    return true;
+  } catch (e) {
+    console.warn("[Native] schedule alarms failed:", e);
+    return false;
+  }
+}
+
 export async function scheduleNativeAlarm(opts: {
   time: string; // "HH:MM"
   name: string;

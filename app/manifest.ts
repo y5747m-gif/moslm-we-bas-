@@ -5,9 +5,10 @@ export const dynamic = "force-static";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "هتصلي يعني هتصلي - منبه الفجر الذكي",
+    name: "هتصلي يعني هتصلي - تطبيق المنبهات الذكية",
     short_name: "هتصلي",
-    description: "تم تصميم هذا البرنامج لإيقاظك لصلاة الفجر وجميع الصلوات فلا تنسانا من صالح دعائكم 🤍 - منبه ذكي يناديك باسمك بصوت رجل، يفحص الصور بالذكاء الاصطناعي، ويعمل بدون إنترنت",
+    description:
+      "تم تصميم هذا البرنامج لإيقاظك لصلاة الفجر وجميع الصلوات فلا تنسانا من صالح دعائكم 🤍 - تطبيق مستقل بهويته الخاصة: منبهات متعددة بلا حد، كل منبه يرن في نفس موعده كل يوم، يناديك باسمك بصوت رجل، يفحص الصور بالذكاء الاصطناعي، ويعمل بدون إنترنت. تطوير: Yaseen amr abd el rahem",
     start_url: "/?source=pwa",
     display: "standalone",
     display_override: ["standalone", "window-controls-overlay", "minimal-ui"],
@@ -58,10 +59,10 @@ export default function manifest(): MetadataRoute.Manifest {
     ],
     shortcuts: [
       {
-        name: "اضبط منبه الفجر",
-        short_name: "منبه الفجر",
-        description: "اضبط منبه جديد لصلاة الفجر",
-        url: "/?action=set-alarm&source=shortcut",
+        name: "أضف منبهاً جديداً",
+        short_name: "منبه جديد",
+        description: "أضف منبهاً يرن في نفس الموعد كل يوم",
+        url: "/?action=add-alarm&source=shortcut",
         icons: [{ src: "/icons/icon-192x192.png", sizes: "192x192", type: "image/png" }],
       },
       {
@@ -78,14 +79,14 @@ export default function manifest(): MetadataRoute.Manifest {
         sizes: "512x512",
         type: "image/png",
         form_factor: "narrow",
-        label: "هتصلي يعني هتصلي - منبه الفجر",
+        label: "هتصلي يعني هتصلي - شاشة المنبهات",
       },
       {
         src: "/icons/icon-512.png",
         sizes: "512x512",
         type: "image/png",
         form_factor: "wide",
-        label: "هتصلي يعني هتصلي - شاشة المنبه",
+        label: "هتصلي يعني هتصلي - رنين المنبه والتحقق",
       },
     ],
     related_applications: [],
