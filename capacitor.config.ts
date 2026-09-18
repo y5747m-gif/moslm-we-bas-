@@ -13,7 +13,9 @@ const config: CapacitorConfig = {
     LocalNotifications: {
       smallIcon: "ic_launcher",
       iconColor: "#10b981",
-      sound: "beep.wav",
+      // لا نضع sound هنا: ملف res/raw غير موجود وكان يُنتج تحذيراً،
+      // وصوت الرنين الحقيقي يأتي من المحرك الأصلي (AlarmRinger) على قناة
+      // STREAM_ALARM بأقصى صوت مع اهتزاز ونداء بالاسم.
     },
     TextToSpeech: {},
   },

@@ -12,10 +12,10 @@
  *  - ويب: منع إطفاء الشاشة (Wake Lock) + ملء الشاشة إن أمكن
  */
 
-import { registerPlugin } from "@capacitor/core";
 import { isNativeApp } from "./native";
+import { AlarmPower } from "./alarmPower";
 
-export type PermId = "notifications" | "exactAlarm" | "battery" | "dnd" | "camera";
+export type PermId = "notifications" | "exactAlarm" | "battery" | "dnd" | "camera" | "fullScreen";
 export type PermState = "granted" | "denied" | "prompt" | "unknown" | "na";
 
 export interface PermStatus {
@@ -32,26 +32,15 @@ export const PERMISSIONS: Array<{ id: PermId; nativeOnly: boolean; critical: boo
   { id: "camera", nativeOnly: false, critical: true },
   { id: "exactAlarm", nativeOnly: true, critical: true },
   { id: "battery", nativeOnly: true, critical: true },
+  { id: "fullScreen", nativeOnly: true, critical: false },
   { id: "dnd", nativeOnly: true, critical: false },
 ];
 
 // ------------------------------------------------------------------
-// إضافة AlarmPower الأصلية (مسجلة في MainActivity)
+// إضافة AlarmPower الأصلية (مسجلة في MainActivity):
+// تعريفها الموحّد في lib/alarmPower.ts - تشمل محرك الجدولة الأصلي
+// (الحارس + الإشعار المثبت + الرنين) بالإضافة إلى فرض الاستيقاظ والأذونات.
 // ------------------------------------------------------------------
-interface AlarmPowerPlugin {
-  canScheduleExactAlarms(): Promise<{ value: boolean }>;
-  openExactAlarmSettings(): Promise<void>;
-  isIgnoringBatteryOptimizations(): Promise<{ value: boolean }>;
-  requestIgnoreBatteryOptimizations(): Promise<void>;
-  hasDndAccess(): Promise<{ value: boolean }>;
-  openDndSettings(): Promise<void>;
-  setVolumeMax(): Promise<{ maxed: boolean }>;
-  restoreVolume(): Promise<void>;
-  acquireWakeLock(): Promise<void>;
-  releaseWakeLock(): Promise<void>;
-}
-
-const AlarmPower = registerPlugin<AlarmPowerPlugin>("AlarmPower");
 
 // ------------------------------------------------------------------
 // فحص حالة إذن واحد
@@ -84,6 +73,11 @@ export async function checkPermission(id: PermId): Promise<PermState> {
       case "dnd": {
         if (!native) return "na";
         const r = await AlarmPower.hasDndAccess();
+        return r.value ? "granted" : "prompt";
+      }
+      case "fullScreen": {
+        if (!native) return "na";
+        const r = await AlarmPower.hasFullScreenIntent();
         return r.value ? "granted" : "prompt";
       }
       case "camera": {
@@ -163,6 +157,12 @@ export async function requestPermission(id: PermId): Promise<PermState> {
         await AlarmPower.openDndSettings();
         return "unknown";
       }
+      case "fullScreen": {
+        if (!native) return "na";
+        // إشعار ملء الشاشة: يوقظ الشاشة فوق القفل وقت الرنين (أندرويد 14+)
+        await AlarmPower.openFullScreenIntentSettings();
+        return "unknown";
+      }
       case "camera": {
         // طلب حقيقي ثم إغلاق فوري - الهدف نيل الموافقة فقط
         try {
@@ -224,8 +224,13 @@ async function releaseWebWakeLock(): Promise<void> {
 export async function enforceRinging(): Promise<void> {
   if (isNativeApp()) {
     try {
-      await Promise.all([AlarmPower.setVolumeMax(), AlarmPower.acquireWakeLock()]);
-      console.log("🔊 Native enforce: volume MAX + wake lock + screen on");
+      // 1) صوت أقصى + قفل استيقاظ (كما كان)
+      await AlarmPower.setVolumeMax();
+      await AlarmPower.acquireWakeLock();
+      // 2) الرنين الأصلي الكامل: صوت منبه متواصل + اهتزاز + نداء بالاسم
+      //    + إشعار ملء الشاشة، ويعمل حتى لو مات الـ WebView
+      await AlarmPower.startRinging();
+      console.log("🔊 Native enforce: volume MAX + wake lock + native ringing engine");
     } catch (e) {
       console.warn("[enforce] native failed:", e);
     }
@@ -246,8 +251,12 @@ export async function enforceRinging(): Promise<void> {
 export async function relaxAfterRinging(): Promise<void> {
   if (isNativeApp()) {
     try {
-      await Promise.all([AlarmPower.restoreVolume(), AlarmPower.releaseWakeLock()]);
-      console.log("🔉 Native relax: volume restored + wake lock released");
+      // الترتيب مهم: أوقف الرنين الأصلي أولاً (يعيد الصوت الذي حفظه)
+      // ثم أعد الصوت الأصلي الذي حفظته الإضافة، وأخيراً حرّر القفل
+      await AlarmPower.stopRinging();
+      await AlarmPower.restoreVolume();
+      await AlarmPower.releaseWakeLock();
+      console.log("🔉 Native relax: ringing stopped + volume restored + wake lock released");
     } catch {
       /* تجاهل */
     }

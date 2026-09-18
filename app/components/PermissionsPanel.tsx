@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Bell, Camera, AlarmClock, Battery, BellOff, Check, X, Loader2, RefreshCw, ShieldCheck } from "lucide-react";
+import { Bell, Camera, AlarmClock, Battery, BellOff, Check, X, Loader2, RefreshCw, ShieldCheck, Maximize2 } from "lucide-react";
 import {
   PERMISSIONS,
   checkAllPermissions,
@@ -16,6 +16,7 @@ const ICONS: Record<PermId, React.ReactNode> = {
   exactAlarm: <AlarmClock className="w-4 h-4" />,
   battery: <Battery className="w-4 h-4" />,
   dnd: <BellOff className="w-4 h-4" />,
+  fullScreen: <Maximize2 className="w-4 h-4" />,
 };
 
 interface Props {
