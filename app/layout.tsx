@@ -120,7 +120,7 @@ export default function RootLayout({
                             // Tell new SW to skip waiting and activate immediately
                             newWorker.postMessage({ type: 'SKIP_WAITING' });
                             // Show update message via custom event
-                            window.dispatchEvent(new CustomEvent('sw-update-found', { detail: { version: '5.0.0' } }));
+                            window.dispatchEvent(new CustomEvent('sw-update-found', { detail: { version: '5.2.0' } }));
                           }
                         });
                       });
@@ -183,7 +183,7 @@ export default function RootLayout({
                     console.log('✅ App just auto-updated for user!');
                     setTimeout(() => {
                       localStorage.removeItem('hatsally-just-updated');
-                      window.dispatchEvent(new CustomEvent('app-just-updated', { detail: { version: '5.0.0' } }));
+                      window.dispatchEvent(new CustomEvent('app-just-updated', { detail: { version: '5.2.0' } }));
                     }, 1000);
                   } else {
                     localStorage.removeItem('hatsally-just-updated');

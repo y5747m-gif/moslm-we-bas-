@@ -40,17 +40,70 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        continue-on-error: true   # الخطوة التالية تثبّت SDK يدوياً لو فشل هذا الأكشن
 
       - name: Install Android API 35/36 packages
         run: |
-          SDK_ROOT="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+          set -e
+          # تنزيلات SDK تفشل أحياناً بشكل متقطع على شبكة GitHub Actions => إعادة محاولة
+          retry() {
+            n=1
+            while [ "$n" -le 4 ]; do
+              if "$@"; then return 0; fi
+              echo "::warning::attempt $n failed, retrying in 20s: $*"
+              n=$((n+1))
+              sleep 20
+            done
+            echo "::error::all attempts failed: $*"
+            return 1
+          }
+
+          SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-$HOME/android-sdk}}"
           echo "SDK_ROOT=$SDK_ROOT"
+          if [ -z "$ANDROID_HOME" ]; then
+            echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
+            echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
+            mkdir -p "$SDK_ROOT"
+          fi
+
           SDKMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
-          yes | "$SDKMANAGER" --licenses > /dev/null || true
-          "$SDKMANAGER" "platform-tools" "platforms;android-36" "platforms;android-35" "build-tools;36.0.0" "build-tools;35.0.0"
+          # أحياناً يُثبَّت الإكشن أدوات الأوامر تحت اسم إصدار بدل latest
+          if [ ! -x "$SDKMANAGER" ]; then
+            ALT="$(ls -d "$SDK_ROOT"/cmdline-tools/*/bin/sdkmanager 2>/dev/null | head -1 || true)"
+            if [ -n "$ALT" ]; then SDKMANAGER="$ALT"; fi
+          fi
+          # لو تعثّر action الـ SDK ولم تتواجد أدوات الأوامر => نزّلها يدوياً
+          if [ ! -x "$SDKMANAGER" ] && ! command -v sdkmanager > /dev/null 2>&1; then
+            echo "::warning::sdkmanager missing - installing Android cmdline-tools manually"
+            mkdir -p "$SDK_ROOT/cmdline-tools"
+            retry curl -fsSL --retry 3 -o /tmp/cmdline-tools.zip \
+              "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip"
+            rm -rf /tmp/cmdline-tools && unzip -q /tmp/cmdline-tools.zip -d /tmp/cmdline-tools
+            rm -rf "$SDK_ROOT/cmdline-tools/latest"
+            mv /tmp/cmdline-tools/cmdline-tools "$SDK_ROOT/cmdline-tools/latest"
+            echo "$SDK_ROOT/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          fi
+          if [ ! -x "$SDKMANAGER" ]; then SDKMANAGER="$(command -v sdkmanager)"; fi
+          echo "SDKMANAGER=$SDKMANAGER"
+
+          retry bash -c "yes | '$SDKMANAGER' --licenses > /dev/null 2>&1" || true
+          retry "$SDKMANAGER" "platform-tools" "platforms;android-36" "platforms;android-35" "build-tools;36.0.0" "build-tools;35.0.0"
+
+          # تأكّد أن المنصة المطلوبة موجودة فعلاً (وإلا فشل البناء برسالة واضحة)
+          if [ ! -d "$SDK_ROOT/platforms/android-36" ]; then
+            echo "::error::Android platform 36 missing under $SDK_ROOT/platforms"
+            ls -la "$SDK_ROOT" || true
+            exit 1
+          fi
+          # دلّ Gradle على مكان الـ SDK
+          echo "sdk.dir=$SDK_ROOT" > android/local.properties
+          cat android/local.properties
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Test web alarm engine (lib/schedule.ts)
+        run: npm run test:alarm
 
       - name: Build web export + sync Capacitor
         run: npm run build:apk
@@ -74,6 +127,17 @@ jobs:
             echo "::error::Gradle assembleDebug failed (exit $code): %0A$msg"
           fi
           cp /tmp/gradle.log "$GITHUB_WORKSPACE/gradle.log" || true
+          exit $code
+
+      - name: Test native alarm engine (JVM unit tests)
+        continue-on-error: true
+        run: |
+          cd android
+          set +e
+          ./gradlew testDebugUnitTest --no-daemon --stacktrace > /tmp/unittest.log 2>&1
+          code=$?
+          tail -n 40 /tmp/unittest.log
+          echo "unit tests exit code: $code"
           exit $code
 
       - name: Upload Gradle log (debug)

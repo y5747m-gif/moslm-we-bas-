@@ -12,6 +12,13 @@
  */
 
 import { Capacitor } from "@capacitor/core";
+import {
+  AlarmPower,
+  hasNativeAlarmEngine,
+  type NativeAlarmState,
+} from "./alarmPower";
+
+export type { NativeAlarmState };
 
 /** هل نعمل داخل تطبيق APK أصلي؟ */
 export function isNativeApp(): boolean {
@@ -146,36 +153,193 @@ export async function requestNativePermissions(): Promise<void> {
   }
 }
 
+/** خيارات تسليح المنبه الأصلي */
+export interface ScheduleAlarmOptions {
+  /** "HH:MM" */
+  time: string;
+  name: string;
+  /** أيام الأسبوع 0=الأحد ... 6=السبت */
+  days: number[];
+  lang: "ar" | "en";
+  /** ISO أو epoch millis (للمدد المحدودة) */
+  startDate?: string | number | null;
+  durationDays?: number | "forever";
+  /** مهلة اللحاق بالموعد الفائت بالدقائق */
+  graceMinutes?: number;
+  /** true = احتفظ بعلامة «رنّ اليوم» (إعادة مزامنة بلا رنين مزدوج) */
+  keepLastFired?: boolean;
+}
+
+let engineReady: boolean | null = null;
+
+/**
+ * هل محرك المنبه الأصلي الجديد (AlarmPower v2) موجود في النسخة المثبتة؟
+ * النتيجة تُحسب مرة واحدة. على المتصفح دائماً false.
+ */
+export async function nativeEngineAvailable(): Promise<boolean> {
+  if (!isNativeApp()) return false;
+  if (engineReady === null) {
+    engineReady = await hasNativeAlarmEngine();
+    console.log(engineReady ? "🛡 [Native] alarm engine v2 detected" : "⚠️ [Native] alarm engine v2 missing - using local notifications fallback");
+  }
+  return engineReady;
+}
+
+/**
+ * تسليح المنبه في النظام 🛡
+ * ----------------------------------------------------------------
+ * المسار الأساسي: المحرك الأصلي (AlarmManager.setAlarmClock + خدمة الحارس
+ * الأمامية + إشعار مثبت لا يمكن إزالته + رنين أصلي كامل) — يعمل حتى لو
+ * أُغلق التطبيق أو أُعيد تشغيل الهاتف.
+ * المسار الاحتياطي (نسخ APK قديمة بدون المحرك): تنبيهات Capacitor المحلية.
+ */
+export async function scheduleNativeAlarm(opts: ScheduleAlarmOptions): Promise<boolean> {
+  if (!isNativeApp()) return false;
+
+  if (await nativeEngineAvailable()) {
+    try {
+      const state = await AlarmPower.setAlarm({
+        time: opts.time,
+        days: opts.days && opts.days.length > 0 ? opts.days : [0, 1, 2, 3, 4, 5, 6],
+        name: opts.name || "",
+        lang: opts.lang === "en" ? "en" : "ar",
+        startDate: opts.startDate ?? null,
+        durationDays: opts.durationDays ?? "forever",
+        graceMinutes: opts.graceMinutes,
+        keepLastFired: opts.keepLastFired === true,
+      });
+      console.log(
+        "🛡 [Native] armed:",
+        opts.time,
+        "next:",
+        state?.nextFireIso || "-",
+        "service:",
+        state?.serviceRunning,
+        "exact:",
+        state?.exactAlarms
+      );
+      return !!state?.armed;
+    } catch (e) {
+      console.warn("[Native] engine setAlarm failed - falling back:", e);
+    }
+  }
+
+  return scheduleViaLocalNotifications(opts);
+}
+
+/**
+ * إعادة المزامنة مع المحرك الأصلي (تُستدعى عند فتح التطبيق/العودة إليه):
+ * تعيد الجدولة، تُحيي الحارس والإشعار المثبت، وتلحق بالموعد الفائت.
+ */
+export async function syncNativeAlarm(): Promise<NativeAlarmState | null> {
+  if (!isNativeApp()) return null;
+  if (!(await nativeEngineAvailable())) return null;
+  try {
+    const state = await AlarmPower.syncNow();
+    return state || null;
+  } catch (e) {
+    console.warn("[Native] syncNow failed:", e);
+    return null;
+  }
+}
+
+/** قراءة حالة المحرك الأصلي (للعرض والاستطلاع الدوري) */
+export async function getNativeAlarmState(): Promise<NativeAlarmState | null> {
+  if (!isNativeApp()) return null;
+  if (!(await nativeEngineAvailable())) return null;
+  try {
+    return (await AlarmPower.getState()) || null;
+  } catch {
+    return null;
+  }
+}
+
+/** بدء الرنين الأصلي (صوت + اهتزاز + نداء بالاسم + إشعار ملء الشاشة) */
+export async function startNativeRinging(): Promise<void> {
+  if (!isNativeApp()) return;
+  if (!(await nativeEngineAvailable())) return;
+  try {
+    await AlarmPower.startRinging();
+  } catch (e) {
+    console.warn("[Native] startRinging failed:", e);
+  }
+}
+
+/** إيقاف الرنين الأصلي (بعد اكتمال التحقق بالتصوير) */
+export async function stopNativeRinging(): Promise<void> {
+  if (!isNativeApp()) return;
+  if (!(await nativeEngineAvailable())) return;
+  try {
+    await AlarmPower.stopRinging();
+  } catch (e) {
+    console.warn("[Native] stopRinging failed:", e);
+  }
+}
+
+/** علّم أن اليوم رنّ حتى لا يرنّ المحرك الأصلي مرة ثانية في نفس اليوم */
+export async function markNativeFired(): Promise<void> {
+  if (!isNativeApp()) return;
+  if (!(await nativeEngineAvailable())) return;
+  try {
+    await AlarmPower.markFired();
+  } catch {
+    /* تجاهل */
+  }
+}
+
+/**
+ * اختبار حقيقي للمسار الكامل 🔬
+ * يجدول موعداً فعلياً بعد delaySeconds فيرنّ الهاتف تماماً كما يرنّ وقت الفجر
+ * (نفس المستقبل + نفس الخدمة + نفس الصوت والإشعار).
+ */
+export async function testNativeRing(delaySeconds = 20): Promise<NativeAlarmState | null> {
+  if (!isNativeApp()) return null;
+  if (!(await nativeEngineAvailable())) return null;
+  try {
+    const state = await AlarmPower.testRing({ delaySeconds });
+    console.log("🔬 [Native] test alarm set for", new Date(state?.testAt || 0).toLocaleTimeString());
+    return state || null;
+  } catch (e) {
+    console.warn("[Native] testRing failed:", e);
+    return null;
+  }
+}
+
+/** إلغاء كل شيء: الجدولة + الحارس + الإشعار المثبت + الرنين */
+export async function cancelNativeAlarm(): Promise<void> {
+  if (!isNativeApp()) return;
+  if (await nativeEngineAvailable()) {
+    try {
+      await AlarmPower.cancelAlarm();
+      console.log("🛡 [Native] alarm cancelled + guard stopped");
+    } catch (e) {
+      console.warn("[Native] cancelAlarm failed:", e);
+    }
+  }
+  await cancelLocalNotifications();
+}
+
+// ------------------------------------------------------------------
+// المسار الاحتياطي: تنبيهات Capacitor المحلية (نسخ APK قديمة)
+// ------------------------------------------------------------------
 function jsDayToCapacitorWeekday(jsDay: number): number {
   // JS: 0=الأحد ... 6=السبت | Capacitor: 1=الأحد ... 7=السبت
   return jsDay + 1;
 }
 
-export async function scheduleNativeAlarm(opts: {
-  time: string; // "HH:MM"
-  name: string;
-  days: number[]; // 0=Sun..6=Sat
-  lang: "ar" | "en";
-}): Promise<boolean> {
-  if (!isNativeApp()) return false;
+async function scheduleViaLocalNotifications(opts: ScheduleAlarmOptions): Promise<boolean> {
   try {
-    const { LocalNotifications } = await import(
-      "@capacitor/local-notifications"
-    );
+    const { LocalNotifications } = await import("@capacitor/local-notifications");
 
-    // إلغاء أي جدولة سابقة أولاً
-    await cancelNativeAlarm();
+    await cancelLocalNotifications();
 
-    const [hStr, mStr] = opts.time.split(":");
+    const [hStr, mStr] = (opts.time || "05:00").split(":");
     const hour = Math.max(0, Math.min(23, parseInt(hStr || "5", 10)));
     const minute = Math.max(0, Math.min(59, parseInt(mStr || "0", 10)));
-    const days =
-      opts.days && opts.days.length > 0 ? opts.days : [0, 1, 2, 3, 4, 5, 6];
+    const days = opts.days && opts.days.length > 0 ? opts.days : [0, 1, 2, 3, 4, 5, 6];
 
     const title =
-      opts.lang === "ar"
-        ? `🚨 استيقظ يا ${opts.name}!`
-        : `🚨 Wake up ${opts.name}!`;
+      opts.lang === "ar" ? `🚨 استيقظ يا ${opts.name}!` : `🚨 Wake up ${opts.name}!`;
     const body =
       opts.lang === "ar"
         ? `حان وقت الفجر يا ${opts.name}! افتح التطبيق - لن يتوقف إلا بالتصوير! 🔒`
@@ -192,39 +356,32 @@ export async function scheduleNativeAlarm(opts: {
       },
       smallIcon: "ic_launcher",
       largeIcon: "ic_launcher",
-      ongoing: true, // لا يمكن سحبه وإغلاقه بسهولة
+      ongoing: true,
       autoCancel: false,
       extra: { type: "fajr-alarm", day: d },
     }));
 
     await LocalNotifications.schedule({ notifications } as never);
-    console.log("🔔 [Native] alarm scheduled:", opts.time, days);
+    console.log("🔔 [Native LN fallback] alarm scheduled:", opts.time, days);
     return true;
   } catch (e) {
-    console.warn("[Native] schedule alarm failed:", e);
+    console.warn("[Native LN fallback] schedule failed:", e);
     return false;
   }
 }
 
-/** إلغاء كل تنبيهات المنبه الأصلية */
-export async function cancelNativeAlarm(): Promise<void> {
-  if (!isNativeApp()) return;
+async function cancelLocalNotifications(): Promise<void> {
   try {
-    const { LocalNotifications } = await import(
-      "@capacitor/local-notifications"
-    );
+    const { LocalNotifications } = await import("@capacitor/local-notifications");
     try {
       const pending = await LocalNotifications.getPending();
       const list = (pending?.notifications || []) as Array<{ id: number }>;
       if (list.length > 0) {
-        await LocalNotifications.cancel({
-          notifications: list.map((n) => ({ id: n.id })),
-        });
+        await LocalNotifications.cancel({ notifications: list.map((n) => ({ id: n.id })) });
       }
     } catch {
       /* تجاهل */
     }
-    // إزالة التنبيهات المعروضة حالياً إن أمكن
     try {
       const api = LocalNotifications as unknown as {
         removeAllDeliveredNotifications?: () => Promise<void>;

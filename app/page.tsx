@@ -53,6 +53,11 @@ import {
   stopNativeSpeech,
   scheduleNativeAlarm,
   cancelNativeAlarm,
+  syncNativeAlarm,
+  getNativeAlarmState,
+  markNativeFired,
+  testNativeRing,
+  nativeEngineAvailable,
   notifyNative,
   requestNativePermissions,
   guardBackButtonWhileRinging,
@@ -62,6 +67,7 @@ import {
   triggerBlobDownload,
   APK_RELEASE_URL,
   type ApkInfo,
+  type NativeAlarmState,
 } from "../lib/native";
 
 type AlarmStage = "idle" | "ringing" | "annoying" | "extreme" | "verification" | "completed";
@@ -258,6 +264,22 @@ const translations = {
     perm_batteryDesc: "حتى لا يقتل النظام المنبه أثناء نومك (في التطبيق فقط)",
     perm_dnd: "تجاوز عدم الإزعاج",
     perm_dndDesc: "للرنين بأقصى صوت حتى في الوضع الصامت (مستحسن)",
+    guardTitle: "🛡 الحارس الأصلي يعمل - المنبه لا يموت",
+    guardTitleOff: "🛡 الحارس متوقف - اضبط المنبه ليبدأ",
+    guardPinned: "📌 إشعار مثبت في شريط الإشعارات لا يمكن إزالته (يعود فوراً لو مسحته)",
+    guardPinnedOff: "📌 الإشعار المثبت غير مفعّل الآن",
+    guardSystemAlarm: "⏰ موعد مسجّل داخل نظام أندرويد (AlarmManager)",
+    guardNoSystemAlarm: "⏰ لا يوجد موعد مسجّل في النظام - اضغط «اضبط المنبه» مرة أخرى",
+    guardWorksClosed: "يعمل حتى بعد إغلاق التطبيق أو سحبه من التطبيقات الأخيرة أو إعادة تشغيل الهاتف 🔋",
+    guardTest: "🔬 اختبر الرنين الحقيقي بعد 20 ثانية",
+    guardTesting: "⏳ هاتفك سيقرع فعلاً خلال 20 ثانية - نفس مسار الفجر",
+    guardOldApk: "النسخة المثبتة قديمة ولا تحتوي المحرك الأصلي الجديد - حمّل آخر APK وثبّته ليعمل المنبه بعد الإغلاق",
+    guardPermsTitle: "أذونات القوة الكاملة",
+    guardPermExact: "منبه دقيق",
+    guardPermBattery: "بطارية",
+    guardPermNotifications: "إشعارات",
+    guardPermFullScreen: "شاشة كاملة",
+    guardRingingNow: "🚨 المحرك الأصلي يرنّ الآن - لن يتوقف إلا بالتصوير",
     permWizardTitle: "امنح الأذونات أولاً 🔐",
     permWizardDesc: "حتى يوقظك الفجر بالقوة، امنح البرنامج هذه الأذونات. أنت المتحكم - يمكنك سحبها من إعدادات الهاتف في أي وقت.",
     permWizardLater: "لاحقاً",
@@ -605,6 +627,22 @@ const translations = {
     perm_batteryDesc: "So the system never kills the alarm while you sleep (in-app only)",
     perm_dnd: "Override Do Not Disturb",
     perm_dndDesc: "To ring at max volume even in silent mode (recommended)",
+    guardTitle: "🛡 Native guard is on - the alarm cannot die",
+    guardTitleOff: "🛡 Guard is off - set your alarm to start it",
+    guardPinned: "📌 Pinned notification in the status bar that cannot be removed (it comes back instantly)",
+    guardPinnedOff: "📌 Pinned notification is not active yet",
+    guardSystemAlarm: "⏰ Alarm registered inside Android (AlarmManager)",
+    guardNoSystemAlarm: "⏰ No alarm registered in the system - press \"Set alarm\" again",
+    guardWorksClosed: "Works even after closing the app, swiping it away from recents, or rebooting the phone 🔋",
+    guardTest: "🔬 Test the real ring in 20 seconds",
+    guardTesting: "⏳ Your phone will really ring in 20 seconds - same path as Fajr",
+    guardOldApk: "The installed build is old and has no native alarm engine - download the latest APK so the alarm works after closing the app",
+    guardPermsTitle: "Full-power permissions",
+    guardPermExact: "Exact alarm",
+    guardPermBattery: "Battery",
+    guardPermNotifications: "Notifications",
+    guardPermFullScreen: "Full screen",
+    guardRingingNow: "🚨 The native engine is ringing now - it only stops after photos",
     permWizardTitle: "Grant permissions first 🔐",
     permWizardDesc: "So Fajr wakes you up forcefully, grant the app these permissions. You're in control - revoke anytime from phone settings.",
     permWizardLater: "Later",
@@ -820,10 +858,14 @@ export default function Page() {
   const [showUpdateBanner, setShowUpdateBanner] = useState(false);
   const [updateInfo, setUpdateInfo] = useState<{ version: string; message: string } | null>(null);
   const [justUpdated, setJustUpdated] = useState(false);
-  const [appVersion] = useState("5.0.0-auto-male-voice");
+  const [appVersion] = useState("5.2.0-native-alarm-engine");
 
   // Native APK + real APK download states
   const [isNativeApp, setIsNativeApp] = useState(false);
+  // حالة المحرك الأصلي (الحارس + الإشعار المثبت + الموعد المسجل في النظام)
+  const [nativeState, setNativeState] = useState<NativeAlarmState | null>(null);
+  const [nativeEngineOk, setNativeEngineOk] = useState<boolean | null>(null);
+  const [guardTesting, setGuardTesting] = useState(false);
   const [apkInfo, setApkInfo] = useState<ApkInfo | null>(null);
   const [apkProgress, setApkProgress] = useState(0);
   const [apkDownloading, setApkDownloading] = useState(false);
@@ -1512,10 +1554,21 @@ export default function Page() {
     return () => clearInterval(interval);
   }, [alarmStage, fastMode, userName, playAnnoyingSounds, playExtremeSounds, speakWakeUp]);
 
+  // قفل يمنع الرنين المزدوج: محرك الويب + المحرك الأصلي + مستمع التنبيه
+  // قد يكتشفون الموعد في نفس اللحظة (صوت ونداء مضاعف = كارثة 😅)
+  const ringLockRef = useRef(false);
+
   const triggerAlarm = useCallback((opts?: { demo?: boolean }) => {
     // علّم اليوم كرنّ (مرة واحدة فقط) - زر التجربة لا يُعلَّم حتى لا يلغي الرنين الحقيقي
     if (!opts?.demo) {
+      if (ringLockRef.current) {
+        console.log("🔒 ring already started - ignoring duplicate trigger");
+        return;
+      }
+      ringLockRef.current = true;
       try { localStorage.setItem("hatsally-last-fired", getTodayKey(new Date())); } catch {}
+      // أخبر المحرك الأصلي أيضاً حتى لا يرنّ مرة ثانية في نفس اليوم
+      void markNativeFired();
     }
     // فتح قفل الصوت: المتصفح يعلّق AudioContext بدون تفاعل سابق فيرنّ صامتاً!
     try {
@@ -1584,6 +1637,11 @@ export default function Page() {
     }
   }, [isAlarmActive, alarmStage, alarmTime, selectedDays, durationDays, alarmStartDate, triggerAlarm]);
 
+  // فكّ قفل الرنين عندما يعود المنبه للخمول أو يكتمل التحقق
+  useEffect(() => {
+    if (alarmStage === "idle" || alarmStage === "completed") ringLockRef.current = false;
+  }, [alarmStage]);
+
   // اللحاق بالرنين عند فتح التطبيق أو العودة إليه أو عودة الإنترنت
   useEffect(() => {
     runAlarmCheck();
@@ -1614,6 +1672,114 @@ export default function Page() {
     }).then((fn) => { off = fn; });
     return () => { if (off) off(); };
   }, [isNativeApp]);
+
+  // ==================================================================
+  // المحرك الأصلي: الحارس + الإشعار المثبت + المنبه الدقيق 🛡
+  // ==================================================================
+
+  /**
+   * تسليح المنبه في النظام الأصلي (وليس في الـ WebView فقط):
+   * يحفظ الإعدادات في أندرويد، يجدولها بـ AlarmManager.setAlarmClock،
+   * ويشغّل خدمة الحارس التي تعرض إشعاراً مثبتاً لا يمكن إزالته وتُبقى
+   * المنبه يعمل حتى بعد إغلاق التطبيق أو إعادة تشغيل الهاتف.
+   */
+  const armNativeEngine = useCallback(
+    async (opts?: { keepLastFired?: boolean }): Promise<boolean> => {
+      if (!isNativeApp) return false;
+      const ok = await scheduleNativeAlarm({
+        time: alarmTime,
+        name: userName,
+        days: selectedDays,
+        lang: language,
+        startDate: alarmStartDate,
+        durationDays,
+        keepLastFired: opts?.keepLastFired,
+      });
+      const st = await getNativeAlarmState();
+      if (st) setNativeState(st);
+      return ok;
+    },
+    [isNativeApp, alarmTime, userName, selectedDays, language, alarmStartDate, durationDays]
+  );
+
+  // اكتشاف المحرك الأصلي مرة واحدة (لعرض حالة الحارس بدقة)
+  useEffect(() => {
+    if (!isNativeApp) return;
+    void nativeEngineAvailable().then((ok) => setNativeEngineOk(ok));
+  }, [isNativeApp]);
+
+  /**
+   * استطلاع حالة المحرك الأصلي كل 5 ثوانٍ + عند العودة للتطبيق.
+   * هذا ما يجعل الواجهة تبدأ الرنين فوراً عندما يرنّ المحرك الأصلي
+   * والتطبيق كان مغلقاً تماماً (إشعار ملء الشاشة فتحه).
+   */
+  useEffect(() => {
+    if (!isNativeApp) return;
+    let stopped = false;
+    const poll = async (withSync: boolean) => {
+      if (withSync) await syncNativeAlarm();
+      const st = await getNativeAlarmState();
+      if (stopped || !st) return;
+      setNativeState(st);
+      if (st.ringing && alarmStageRef.current === "idle") {
+        console.log("⏰ Native engine is ringing → starting in-app ring + escalation");
+        try { localStorage.setItem("hatsally-last-fired", getTodayKey(new Date())); } catch {}
+        triggerAlarmRef.current();
+      }
+    };
+    void poll(true);
+    const id = window.setInterval(() => void poll(false), 5000);
+    const onReturn = () => {
+      if (!document.hidden) void poll(true); // مزامنة بعد العودة من إعدادات النظام
+    };
+    const onNativeFire = () => void poll(true); // حدث من MainActivity عند فتح المنبه للتطبيق
+    document.addEventListener("visibilitychange", onReturn);
+    window.addEventListener("focus", onReturn);
+    window.addEventListener("hatsallyAlarmFire" as never, onNativeFire as never);
+    return () => {
+      stopped = true;
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onReturn);
+      window.removeEventListener("focus", onReturn);
+      window.removeEventListener("hatsallyAlarmFire" as never, onNativeFire as never);
+    };
+  }, [isNativeApp]);
+
+  /**
+   * شفاء ذاتي: أي تغيير في الوقت/الأيام/المدة/الاسم يعيد تسليح المحرك
+   * الأصلي تلقائياً (الخلل القديم كان يترك الجدولة القديمة في النظام!).
+   */
+  useEffect(() => {
+    if (!isNativeApp || !isAlarmActive) return;
+    const id = window.setTimeout(() => {
+      void (async () => {
+        // لو رنّ اليوم فعلاً حسب الواجهة: أخبر المحرك الأصلي حتى لا يكرره
+        try {
+          if (localStorage.getItem("hatsally-last-fired") === getTodayKey(new Date())) {
+            await markNativeFired();
+          }
+        } catch {}
+        await armNativeEngine({ keepLastFired: true });
+      })();
+    }, 900);
+    return () => window.clearTimeout(id);
+  }, [isNativeApp, isAlarmActive, alarmTime, selectedDays, durationDays, alarmStartDate, userName, language, armNativeEngine]);
+
+  /** اختبار حقيقي: يرنّ الهاتف فعلاً بعد delaySeconds عبر نفس مسار الفجر */
+  const handleTestNativeRing = useCallback(async () => {
+    if (guardTesting) return;
+    setGuardTesting(true);
+    try {
+      const st = await testNativeRing(20);
+      if (st) setNativeState(st);
+      if (!st) {
+        // لا يوجد محرك أصلي (متصفح أو نسخة قديمة) → تجربة داخل الصفحة
+        triggerAlarmRef.current({ demo: true });
+      }
+    } finally {
+      window.setTimeout(() => setGuardTesting(false), 3000);
+    }
+  }, [guardTesting]);
 
   // Listen to SW messages for persistent alarm + auto-update - must be after triggerAlarm
   useEffect(() => {
@@ -1724,12 +1890,9 @@ export default function Page() {
       alert(language === "ar" ? "اختر يوماً واحداً على الأقل" : "Select at least one day");
       return;
     }
-    // المستخدم يمنح الموافقات أولاً - لا منبه بدون الأذونات الحرجة
+    // نفحص الأذونات، لكن لا نترك المستخدم بلا منبه أبداً:
+    // يُسلَّح المنبه في النظام فوراً، ثم نعرض معالج الأذونات لإكمال القوة الكاملة.
     const crit = await checkCritical();
-    if (!crit.ok) {
-      setShowPermWizard(true);
-      return;
-    }
     const startDate = new Date().toISOString();
     localStorage.setItem("hatsally-user-name", userName);
     localStorage.setItem("hatsally-alarm-time", alarmTime);
@@ -1751,17 +1914,23 @@ export default function Page() {
         name: userName,
         days: selectedDays,
         duration: durationDays,
-        startDate: startDate
+        startDate: startDate,
+        lang: language
       });
     }
-    // داخل تطبيق APK: جدولة تنبيه أصلي دقيق يعمل حتى لو التطبيق مغلق تماماً
+    // داخل تطبيق APK: تسليح المحرك الأصلي (منبه دقيق + حارس + إشعار مثبت)
+    // يعمل حتى لو أُغلق التطبيق تماماً أو أُعيد تشغيل الهاتف
     if (isNativeApp) {
-      void scheduleNativeAlarm({ time: alarmTime, name: userName, days: selectedDays, lang: language });
+      await armNativeEngine();
       void notifyNative(
         language === "ar" ? "✅ تم ضبط منبه هتصلي" : "✅ HatSally alarm set",
-        language === "ar" ? `سيوقظك المنبه الساعة ${alarmTime} يا ${userName}` : `Alarm will wake you at ${alarmTime}, ${userName}`
+        language === "ar"
+          ? `سيوقظك المنبه الساعة ${alarmTime} يا ${userName} - الحارس يعمل والإشعار مثبت في الشريط 🔒`
+          : `Alarm will wake you at ${alarmTime}, ${userName} - guard is on with a pinned notification 🔒`
       );
     }
+    // الأذونات الناقصة: افتح المعالج بعد التسليح (المنبه صار مسلحاً وينقصه بعض القوة فقط)
+    if (!crit.ok) setShowPermWizard(true);
     if ("Notification" in window && isInstalled && Notification.permission === "granted") {
       try {
         new Notification(language === "ar" ? "✅ تم ضبط منبه هتصلي" : "✅ HatSally alarm set", {
@@ -2198,7 +2367,8 @@ export default function Page() {
         // (الخلل القديم كان يقتل منبه 7/14/30 يوم بعد أول رنين!)
         setIsAlarmActive(true);
         localStorage.setItem("hatsally-alarm-active", "true");
-        void scheduleNativeAlarm({ time: alarmTime, name: userName, days: selectedDays, lang: language });
+        // أعد تسليح المحرك الأصلي للموعد القادم (مع إبقاء علامة «رنّ اليوم»)
+        void armNativeEngine({ keepLastFired: true });
         if (navigator.serviceWorker?.controller) {
           navigator.serviceWorker?.controller.postMessage({ type: "ALARM_COMPLETED", name: userName });
         }
@@ -2262,7 +2432,9 @@ export default function Page() {
     setCameraPermissionError(false);
     setCameraStreamActive(false);
     localStorage.setItem("hatsally-alarm-active", "false");
-    void cancelNativeAlarm();
+    try { localStorage.removeItem("hatsally-last-fired"); } catch {}
+    // إلغاء الجدولة + إيقاف الحارس + إزالة الإشعار المثبت
+    void cancelNativeAlarm().then(() => setNativeState(null));
     if (navigator.serviceWorker?.controller) {
       navigator.serviceWorker?.controller.postMessage({ type: "CLEAR_ALARM" });
     }
@@ -2913,6 +3085,98 @@ export default function Page() {
                     </p>
                     <p className="text-xs mt-1 opacity-90">⏱ {renderNextRing()}</p>
                   </div>
+                </div>
+              )}
+
+              {/* 🛡 الحارس الأصلي: خدمة أمامية + إشعار مثبت لا يمكن إزالته */}
+              {isNativeApp && (
+                <div
+                  className={`p-4 rounded-2xl border ${
+                    nativeState?.serviceRunning && nativeState?.armed
+                      ? isDark
+                        ? "bg-emerald-500/[0.07] border-emerald-500/25"
+                        : "bg-emerald-50/70 border-emerald-200"
+                      : isDark
+                        ? "bg-amber-500/[0.07] border-amber-500/25"
+                        : "bg-amber-50/70 border-amber-200"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    {nativeState?.serviceRunning ? (
+                      <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0" />
+                    ) : (
+                      <ShieldAlert className="w-4 h-4 text-amber-500 shrink-0" />
+                    )}
+                    <p className="text-xs font-bold flex-1">
+                      {nativeState?.serviceRunning && nativeState?.armed ? t.guardTitle : t.guardTitleOff}
+                    </p>
+                    <span
+                      className={`text-[9px] px-2 py-0.5 rounded-full font-bold shrink-0 ${
+                        nativeState?.serviceRunning ? "bg-emerald-500 text-black" : "bg-amber-500 text-black"
+                      }`}
+                    >
+                      {nativeState?.serviceRunning ? "ON" : "OFF"}
+                    </span>
+                  </div>
+
+                  <p className={`text-[10px] mt-2 leading-relaxed ${textMuted}`}>
+                    {nativeState?.serviceRunning ? t.guardPinned : t.guardPinnedOff}
+                  </p>
+                  <p className={`text-[10px] mt-1 leading-relaxed ${textMuted}`}>
+                    {nativeState?.alarmPendingInSystem
+                      ? `${t.guardSystemAlarm}: ${nativeState.nextFireText || ""} ${
+                          nativeState.nextFireAt
+                            ? "• " +
+                              new Date(nativeState.nextFireAt).toLocaleString(
+                                language === "ar" ? "ar-EG" : "en-US"
+                              )
+                            : ""
+                        }`
+                      : t.guardNoSystemAlarm}
+                  </p>
+                  {nativeState?.ringing && (
+                    <p className="text-[10px] mt-1 font-bold text-red-500 animate-pulse">{t.guardRingingNow}</p>
+                  )}
+
+                  <p className={`text-[9px] mt-3 mb-1.5 font-bold ${textFaint}`}>{t.guardPermsTitle}</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      { label: t.guardPermExact, ok: !!nativeState?.exactAlarms },
+                      { label: t.guardPermBattery, ok: !!nativeState?.ignoringBattery },
+                      { label: t.guardPermNotifications, ok: !!nativeState?.notificationsEnabled },
+                      { label: t.guardPermFullScreen, ok: !!nativeState?.fullScreenIntent },
+                    ].map((c) => (
+                      <span
+                        key={c.label}
+                        className={`text-[9px] px-2 py-0.5 rounded-full border font-bold ${
+                          c.ok
+                            ? isDark
+                              ? "border-emerald-500/40 text-emerald-300"
+                              : "border-emerald-300 text-emerald-700"
+                            : isDark
+                              ? "border-red-500/40 text-red-300"
+                              : "border-red-300 text-red-600"
+                        }`}
+                      >
+                        {c.ok ? "✓" : "✗"} {c.label}
+                      </span>
+                    ))}
+                  </div>
+
+                  <button
+                    onClick={() => void handleTestNativeRing()}
+                    disabled={guardTesting}
+                    className={`mt-3 w-full h-10 rounded-xl font-bold text-xs transition flex items-center justify-center gap-2 disabled:opacity-60 ${
+                      isDark ? "bg-white/10 hover:bg-white/15" : "bg-zinc-900 text-white hover:bg-zinc-800"
+                    }`}
+                  >
+                    <BellRing className="w-3.5 h-3.5" />
+                    {guardTesting ? t.guardTesting : t.guardTest}
+                  </button>
+                  <p className={`text-[9px] mt-2 leading-relaxed ${textFaint}`}>{t.guardWorksClosed}</p>
+                  {nativeEngineOk === false && (
+                    <p className="text-[10px] mt-2 font-bold text-amber-500">{t.guardOldApk}</p>
+                  )}
                 </div>
               )}
 

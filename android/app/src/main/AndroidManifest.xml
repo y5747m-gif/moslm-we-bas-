@@ -43,6 +43,41 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
+
+        <!-- ============================================================
+             الحارس 🛡 - خدمة أمامية تبقي المنبه حياً بعد إغلاق التطبيق
+             وتعرض إشعاراً مثبتاً في شريط الإشعارات لا يمكن إزالته
+             ============================================================ -->
+        <service
+            android:name=".AlarmGuardService"
+            android:enabled="true"
+            android:exported="false"
+            android:stopWithTask="false"
+            android:foregroundServiceType="systemExempted|specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="alarm_clock_ring_and_persistent_alarm_status" />
+        </service>
+
+        <!-- مستقبل الموعد (بث صريح داخلي من AlarmManager) -->
+        <receiver
+            android:name=".AlarmReceiver"
+            android:enabled="true"
+            android:exported="false" />
+
+        <!-- إعادة البناء بعد الإقلاع / تغيير الوقت / تحديث التطبيق / إذن المنبه الدقيق -->
+        <receiver
+            android:name=".BootReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
+            </intent-filter>
+        </receiver>
     </application>
 
     <!-- Permissions - صلاحيات منبه الفجر الذكي -->
@@ -65,6 +100,9 @@
     <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
     <!-- إبقاء الهاتف مستيقظاً أثناء الرنين -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- الحارس: خدمة أمامية تبقي المنبه يعمل بعد إغلاق التطبيق + إشعار مثبت -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <!-- نوع الخدمة المخصص لتطبيقات المنبهات (أندرويد 14+) - لا شروط تشغيل إضافية -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SYSTEM_EXEMPTED" />
 </manifest>

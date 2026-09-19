@@ -1,6 +1,6 @@
 {
   "name": "hatsally-fajr-alarm",
-  "version": "5.1.0",
+  "version": "5.2.0",
   "private": true,
   "description": "هتصلي يعني هتصلي - منبه الفجر الذكي (PWA + تطبيق أندرويد APK أصلي)",
   "scripts": {
