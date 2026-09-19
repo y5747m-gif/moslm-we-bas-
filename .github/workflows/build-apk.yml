@@ -40,6 +40,7 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        continue-on-error: true   # الخطوة التالية تثبّت SDK يدوياً لو فشل هذا الأكشن
 
       - name: Install Android API 35/36 packages
         run: |
@@ -66,6 +67,11 @@ jobs:
           fi
 
           SDKMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          # أحياناً يُثبَّت الإكشن أدوات الأوامر تحت اسم إصدار بدل latest
+          if [ ! -x "$SDKMANAGER" ]; then
+            ALT="$(ls -d "$SDK_ROOT"/cmdline-tools/*/bin/sdkmanager 2>/dev/null | head -1 || true)"
+            if [ -n "$ALT" ]; then SDKMANAGER="$ALT"; fi
+          fi
           # لو تعثّر action الـ SDK ولم تتواجد أدوات الأوامر => نزّلها يدوياً
           if [ ! -x "$SDKMANAGER" ] && ! command -v sdkmanager > /dev/null 2>&1; then
             echo "::warning::sdkmanager missing - installing Android cmdline-tools manually"
@@ -82,7 +88,16 @@ jobs:
 
           retry bash -c "yes | '$SDKMANAGER' --licenses > /dev/null 2>&1" || true
           retry "$SDKMANAGER" "platform-tools" "platforms;android-36" "platforms;android-35" "build-tools;36.0.0" "build-tools;35.0.0"
-          "$SDKMANAGER" --list_installed || true
+
+          # تأكّد أن المنصة المطلوبة موجودة فعلاً (وإلا فشل البناء برسالة واضحة)
+          if [ ! -d "$SDK_ROOT/platforms/android-36" ]; then
+            echo "::error::Android platform 36 missing under $SDK_ROOT/platforms"
+            ls -la "$SDK_ROOT" || true
+            exit 1
+          fi
+          # دلّ Gradle على مكان الـ SDK
+          echo "sdk.dir=$SDK_ROOT" > android/local.properties
+          cat android/local.properties
 
       - name: Install dependencies
         run: npm ci
