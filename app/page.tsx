@@ -2510,10 +2510,10 @@ export default function Page() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={handleInstallApp} className="px-4 py-2 rounded-full bg-white text-emerald-700 font-bold text-xs hover:bg-white/90 transition flex items-center gap-1.5">
+            <a href="/downloads/hatsally.apk" download="hatsally.apk" className="px-4 py-2 rounded-full bg-white text-emerald-700 font-bold text-xs hover:bg-white/90 transition flex items-center gap-1.5">
               <Download className="w-3.5 h-3.5" />
-              {t.installBtn}
-            </button>
+              {language === "ar" ? "تحميل APK" : "Download APK"}
+            </a>
             <button
               onClick={() => {
                 setShowInstallBanner(false);
