@@ -20,7 +20,11 @@ const [major = 5, minor = 1, patch = 0] = String(pkg.version || "5.1.0")
   .split(".")
   .map((n) => parseInt(n, 10) || 0);
 const runNumber = parseInt(process.env.GITHUB_RUN_NUMBER || "0", 10) || 0;
-const versionCode = runNumber > 0 ? runNumber : major * 10000 + minor * 100 + patch;
+const versionBase = major * 10000 + minor * 1000 + patch * 10;
+// يجب أن يطابق حساب workflow: قاعدة دلالية كبيرة + رقم البناء.
+// استخدام runNumber وحده كان يعرض رقماً خاطئاً وقد يجعل Android يرفض
+// التحديث باعتباره downgrade بعد إصدار ذي versionCode يدوي كبير.
+const versionCode = versionBase + runNumber;
 
 const info = {
   available: true,
