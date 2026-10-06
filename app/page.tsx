@@ -62,9 +62,6 @@ import {
   guardBackButtonWhileRinging,
   onNativeAlarmTap,
   getApkInfo,
-  downloadApk,
-  triggerBlobDownload,
-  APK_RELEASE_URL,
   type ApkInfo,
   type NativeAlarmState,
 } from "../lib/native";
@@ -2055,60 +2052,31 @@ export default function Page() {
     setSnoozeHoldProgress(0);
   };
 
-  // تحميل ملف APK الحقيقي على الهاتف مع نسبة تقدم
+  // تنزيل مباشر من نفس الموقع: لا فتح GitHub ولا تحويل المستخدم لصفحة أخرى.
   const handleDownloadAPK = async () => {
-    // الآيفون لا يدعم APK - نعرض خيار التثبيت من المتصفح فقط
     if (isIosDevice() && !isNativeApp) {
       setShowDownloadModal(true);
       return;
     }
     setApkError(null);
-    setApkDownloaded(false);
-    setApkProgress(0);
-    setShowDownloadModal(true);
-
-    // التأكد من معلومات آخر نسخة
-    let info = apkInfo;
-    if (!info) {
-      info = await getApkInfo();
-      if (info) setApkInfo(info);
-    }
-
-    const candidates = [
-      info?.available ? info.url : null,
-      "/downloads/hatsally.apk",
-      info?.releaseUrl || APK_RELEASE_URL,
-    ].filter(Boolean) as string[];
-    // إزالة التكرار
-    const urls = [...new Set(candidates)];
-
     setApkDownloading(true);
-    let lastError: unknown = null;
-    for (const url of urls) {
-      try {
-        console.log("📥 Trying APK download from:", url);
-        const blob = await downloadApk(url, (pct) => setApkProgress(pct));
-        // التأكد أن الملف APK حقيقي وليس صفحة خطأ (أكبر من 1MB ويبدأ بتوقيع ZIP)
-        if (blob.size < 1024 * 1024) {
-          const head = new Uint8Array(await blob.slice(0, 4).arrayBuffer());
-          const isZip = head[0] === 0x50 && head[1] === 0x4b;
-          if (!isZip) throw new Error("not an APK file");
-        }
-        triggerBlobDownload(blob, info?.fileName || "hatsally.apk");
-        setApkDownloading(false);
-        setApkDownloaded(true);
-        setApkProgress(100);
-        if ("vibrate" in navigator) { try { navigator.vibrate([100, 50, 200]); } catch {} }
-        return;
-      } catch (e) {
-        console.warn("APK download failed from", url, e);
-        lastError = e;
-        setApkProgress(0);
-      }
+    setApkProgress(100);
+    try {
+      const link = document.createElement("a");
+      link.href = "/downloads/hatsally.apk";
+      link.download = "hatsally.apk";
+      link.rel = "noopener";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setApkDownloaded(true);
+      if ("vibrate" in navigator) navigator.vibrate([100, 50, 200]);
+    } catch (error) {
+      console.error("Direct APK download failed", error);
+      setApkError(t.apkError);
+    } finally {
+      setApkDownloading(false);
     }
-    setApkDownloading(false);
-    console.error("All APK sources failed:", lastError);
-    setApkError(t.apkError);
   };
 
   const handleInstallApp = async () => {
@@ -4007,7 +3975,7 @@ export default function Page() {
                         {t.apkRetry}
                       </button>
                       <a
-                        href={apkInfo?.releaseUrl || APK_RELEASE_URL}
+                        href="/downloads/hatsally.apk" download="hatsally.apk"
                         className={`w-full h-12 rounded-full ${glassClass} font-semibold text-sm flex items-center justify-center gap-2 hover:bg-white/10 transition`}
                       >
                         <Download className="w-4 h-4" />
