@@ -25,8 +25,8 @@ public final class AlarmStore {
 
     /** مدة بلا نهاية */
     public static final int FOREVER = -1;
-    /** مهلة اللحاق بالموعد بالدقائق (نفس قيمة lib/schedule.ts في الويب) */
-    public static final int DEFAULT_GRACE_MINUTES = 45;
+    /** ثابت توافق؛ المصدر الوحيد هو config/alarm-engine.json → AlarmConstants. */
+    public static final int DEFAULT_GRACE_MINUTES = AlarmConstants.DEFAULT_GRACE_MINUTES;
 
     private static final String K_ARMED = "armed";
     private static final String K_TIME = "time";
@@ -36,10 +36,15 @@ public final class AlarmStore {
     private static final String K_START = "startMillis";
     private static final String K_DURATION = "durationDays";
     private static final String K_LAST_FIRED = "lastFiredKey";
-    private static final String K_GRACE = "graceMinutes";
+    private static final String K_LAST_MISSED = "lastMissedKey";
     private static final String K_RINGING = "ringing";
     private static final String K_RING_STARTED = "ringStartedAt";
+    private static final String K_VERIFICATION_REQUIRED = "verificationRequired";
     private static final String K_SCHEDULED_AT = "scheduledAt";
+    private static final String K_SCHEDULE_STATUS = "scheduleStatus";
+    private static final String K_VOLUME_SAVED = "originalVolumeSaved";
+    private static final String K_ORIGINAL_ALARM_VOLUME = "originalAlarmVolume";
+    private static final String K_ORIGINAL_MUSIC_VOLUME = "originalMusicVolume";
 
     private AlarmStore() {}
 
@@ -56,8 +61,10 @@ public final class AlarmStore {
         public long startMillis = 0L;
         /** عدد الأيام أو FOREVER */
         public int durationDays = FOREVER;
-        /** آخر يوم رنّ فيه "yyyy-MM-dd" */
+        /** آخر يوم بدأ فيه الرنين فعلياً "yyyy-MM-dd" */
         public String lastFiredKey = null;
+        /** آخر يوم اعتُبر فائتاً بعد انتهاء المهلة، لمنع catch-up متكرر. */
+        public String lastMissedKey = null;
         public int graceMinutes = DEFAULT_GRACE_MINUTES;
     }
 
@@ -76,7 +83,8 @@ public final class AlarmStore {
         c.startMillis = p.getLong(K_START, 0L);
         c.durationDays = p.getInt(K_DURATION, FOREVER);
         c.lastFiredKey = p.getString(K_LAST_FIRED, null);
-        c.graceMinutes = p.getInt(K_GRACE, DEFAULT_GRACE_MINUTES);
+        c.lastMissedKey = p.getString(K_LAST_MISSED, null);
+        c.graceMinutes = DEFAULT_GRACE_MINUTES;
         return c;
     }
 
@@ -92,8 +100,8 @@ public final class AlarmStore {
             .putLong(K_START, c.startMillis)
             .putInt(K_DURATION, c.durationDays)
             .putString(K_LAST_FIRED, c.lastFiredKey)
-            .putInt(K_GRACE, c.graceMinutes <= 0 ? DEFAULT_GRACE_MINUTES : c.graceMinutes)
-            .apply();
+            .putString(K_LAST_MISSED, c.lastMissedKey)
+            .commit();
     }
 
     /** إلغاء التسليح نهائياً (يبقى الاسم والوقت للراحة) */
@@ -104,8 +112,11 @@ public final class AlarmStore {
             .putBoolean(K_RINGING, false)
             .putLong(K_RING_STARTED, 0L)
             .putLong(K_SCHEDULED_AT, 0L)
+            .putBoolean(K_VERIFICATION_REQUIRED, false)
+            .putString(K_SCHEDULE_STATUS, "FAILED")
             .remove(K_LAST_FIRED)
-            .apply();
+            .remove(K_LAST_MISSED)
+            .commit();
     }
 
     /** مسح كل شيء */
@@ -119,11 +130,62 @@ public final class AlarmStore {
 
     /** علّم أن اليوم رنّ (يمنع التكرار في نفس اليوم) */
     public static void markFired(Context ctx, String dayKey) {
-        prefs(ctx).edit().putString(K_LAST_FIRED, dayKey).apply();
+        prefs(ctx).edit().putString(K_LAST_FIRED, dayKey).commit();
     }
 
     public static void markFiredNow(Context ctx) {
         markFired(ctx, dayKey(System.currentTimeMillis()));
+    }
+
+    public static void markMissedNow(Context ctx) {
+        prefs(ctx).edit().putString(K_LAST_MISSED, dayKey(System.currentTimeMillis())).commit();
+    }
+
+    public static void setVerificationRequired(Context ctx, boolean required) {
+        prefs(ctx).edit().putBoolean(K_VERIFICATION_REQUIRED, required).commit();
+    }
+
+    public static boolean isVerificationRequired(Context ctx) {
+        return prefs(ctx).getBoolean(K_VERIFICATION_REQUIRED, false);
+    }
+
+    /** حفظ الصوت مرة واحدة في تخزين دائم حتى يمكن استعادته بعد قتل العملية. */
+    public static synchronized void saveOriginalVolumes(Context ctx, int alarm, int music) {
+        SharedPreferences p = prefs(ctx);
+        if (p.getBoolean(K_VOLUME_SAVED, false)) return;
+        p.edit()
+            .putInt(K_ORIGINAL_ALARM_VOLUME, alarm)
+            .putInt(K_ORIGINAL_MUSIC_VOLUME, music)
+            .putBoolean(K_VOLUME_SAVED, true)
+            .commit();
+    }
+
+    public static boolean hasOriginalVolumes(Context ctx) {
+        return prefs(ctx).getBoolean(K_VOLUME_SAVED, false);
+    }
+
+    public static int originalAlarmVolume(Context ctx, int fallback) {
+        return prefs(ctx).getInt(K_ORIGINAL_ALARM_VOLUME, fallback);
+    }
+
+    public static int originalMusicVolume(Context ctx, int fallback) {
+        return prefs(ctx).getInt(K_ORIGINAL_MUSIC_VOLUME, fallback);
+    }
+
+    public static void clearOriginalVolumes(Context ctx) {
+        prefs(ctx).edit()
+            .remove(K_ORIGINAL_ALARM_VOLUME)
+            .remove(K_ORIGINAL_MUSIC_VOLUME)
+            .putBoolean(K_VOLUME_SAVED, false)
+            .commit();
+    }
+
+    public static void setScheduleStatus(Context ctx, String status) {
+        prefs(ctx).edit().putString(K_SCHEDULE_STATUS, status == null ? "FAILED" : status).commit();
+    }
+
+    public static String scheduleStatus(Context ctx) {
+        return prefs(ctx).getString(K_SCHEDULE_STATUS, "FAILED");
     }
 
     public static void setRinging(Context ctx, boolean ringing) {
@@ -134,7 +196,7 @@ public final class AlarmStore {
         } else {
             e.putLong(K_RING_STARTED, 0L);
         }
-        e.apply();
+        e.commit();
     }
 
     public static boolean isRinging(Context ctx) {
@@ -175,7 +237,8 @@ public final class AlarmStore {
 
     public static int[] parseDays(String csv) {
         int[] all = new int[] { 0, 1, 2, 3, 4, 5, 6 };
-        if (csv == null || csv.trim().length() == 0) return all;
+        if (csv == null) return all;
+        if (csv.trim().length() == 0) return new int[0];
         String[] parts = csv.split(",");
         int[] out = new int[parts.length];
         int n = 0;
@@ -187,14 +250,15 @@ public final class AlarmStore {
                 // تجاهل قيمة فاسدة
             }
         }
-        if (n == 0) return all;
+        if (n == 0) return new int[0];
         int[] res = new int[n];
         System.arraycopy(out, 0, res, 0, n);
         return res;
     }
 
     public static String joinDays(int[] days) {
-        if (days == null || days.length == 0) return "0,1,2,3,4,5,6";
+        if (days == null) return "0,1,2,3,4,5,6";
+        if (days.length == 0) return "";
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < days.length; i++) {
             if (i > 0) sb.append(',');

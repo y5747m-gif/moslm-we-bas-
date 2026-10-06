@@ -6,6 +6,8 @@
  * مرة واحدة فقط في اليوم (lastFired)، وليس عند الثانية صفر!
  */
 
+import { DEFAULT_GRACE_MINUTES } from "./alarmConstants";
+
 export type DurationDays = "forever" | number;
 
 export interface AlarmConfig {
@@ -20,8 +22,8 @@ export interface AlarmConfig {
   lastFiredKey: string | null;
 }
 
-/** مهلة اللحاق بالرنين بالدقائق (لو فُتح التطبيق متأخراً) */
-export const RING_GRACE_MINUTES = 45;
+/** مهلة اللحاق بالرنين؛ مولّدة من config/alarm-engine.json. */
+export const RING_GRACE_MINUTES = DEFAULT_GRACE_MINUTES;
 
 export type RingAction = "ring" | "wait" | "missed" | "expired" | "inactive";
 
@@ -41,8 +43,9 @@ export function getTodayKey(d: Date): string {
 }
 
 function parseTime(time: string): { h: number; m: number } | null {
-  const parts = (time || "").split(":");
-  if (parts.length < 2) return null;
+  if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time || "")) return null;
+  const parts = time.split(":");
+  if (parts.length !== 2) return null;
   const h = Number(parts[0]);
   const m = Number(parts[1]);
   if (!Number.isInteger(h) || !Number.isInteger(m)) return null;
@@ -68,7 +71,10 @@ export function isExpired(now: Date, startDate: string | null, durationDays: Dur
   if (!startDate) return false;
   const start = new Date(startDate);
   if (Number.isNaN(start.getTime())) return false;
-  const diffDays = Math.floor((startOfDay(now).getTime() - startOfDay(start).getTime()) / 86400000);
+  // فرق تقويمي لا فرق milliseconds؛ يحافظ على 7 أيام حتى عبر DST/timezone.
+  const nowDay = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  const startDay = Date.UTC(start.getFullYear(), start.getMonth(), start.getDate());
+  const diffDays = Math.floor((nowDay - startDay) / 86400000);
   const limit = typeof durationDays === "number" ? durationDays : 30;
   return diffDays >= limit;
 }

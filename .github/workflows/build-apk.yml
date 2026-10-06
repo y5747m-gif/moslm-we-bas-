@@ -102,100 +102,103 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Test web alarm engine (lib/schedule.ts)
-        run: npm run test:alarm
+      - name: Generate shared alarm constants
+        run: npm run generate:alarm
 
-      - name: Build web export + sync Capacitor
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test web engines
+        run: npm test
+
+      - name: Build production web
+        run: npm run build
+
+      - name: Export web and sync Capacitor
         run: npm run build:apk
 
-      - name: Bump Android versionCode monotonically
-        run: |
-          # قاعدة الإصدار تمنع Android من رفض التحديث كـ downgrade حتى لو
-          # كان APK قد بُني سابقاً برقم إصدار يدوي كبير.
-          VERSION_CODE=$((53000 + ${{ github.run_number }}))
-          sed -i "s/versionCode .*/versionCode $VERSION_CODE/" android/app/build.gradle
-          grep -n "versionCode\|versionName" android/app/build.gradle
-
-      - name: Assemble debug APK
+      - name: Test native alarm engine
         run: |
           cd android
           chmod +x gradlew
-          set +e
-          ./gradlew assembleDebug --no-daemon --stacktrace > /tmp/gradle.log 2>&1
-          code=$?
-          echo "Gradle exit code: $code"
-          tail -n 60 /tmp/gradle.log
-          if [ "$code" -ne 0 ]; then
-            msg=$(grep -aE "FAILED|error:|Error|Exception|What went wrong" /tmp/gradle.log | tail -n 25 | tr '\n' '%0A' | cut -c1-4000)
-            echo "::error::Gradle assembleDebug failed (exit $code): %0A$msg"
-          fi
-          cp /tmp/gradle.log "$GITHUB_WORKSPACE/gradle.log" || true
-          exit $code
+          ./gradlew testDebugUnitTest --no-daemon --stacktrace
 
-      - name: Test native alarm engine (JVM unit tests)
-        continue-on-error: true
+      - name: Prepare release signing keystore
+        env:
+          ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE }}
         run: |
+          if [ -z "$ANDROID_KEYSTORE_B64" ]; then
+            echo "::error::Missing ANDROID_KEYSTORE GitHub Secret (base64 encoded release keystore)"
+            exit 1
+          fi
+          echo "$ANDROID_KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/hatsally-release.jks"
+          test -s "$RUNNER_TEMP/hatsally-release.jks"
+
+      - name: Assemble signed Release APK
+        env:
+          ANDROID_KEYSTORE_FILE: ${{ runner.temp }}/hatsally-release.jks
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+        run: |
+          for value in KEY_ALIAS KEY_PASSWORD STORE_PASSWORD; do
+            if [ -z "${!value}" ]; then echo "::error::Missing GitHub Secret: $value"; exit 1; fi
+          done
           cd android
-          set +e
-          ./gradlew testDebugUnitTest --no-daemon --stacktrace > /tmp/unittest.log 2>&1
-          code=$?
-          tail -n 40 /tmp/unittest.log
-          echo "unit tests exit code: $code"
-          exit $code
+          ./gradlew assembleRelease --no-daemon --stacktrace
 
-      - name: Upload Gradle log (debug)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: gradle-log
-          path: gradle.log
-          retention-days: 7
-          if-no-files-found: ignore
+      - name: Verify APK signature and manifest
+        id: apk
+        run: |
+          APK="android/app/build/outputs/apk/release/app-release.apk"
+          test -s "$APK"
+          APKSIGNER="${ANDROID_SDK_ROOT:-$ANDROID_HOME}/build-tools/36.0.0/apksigner"
+          AAPT="${ANDROID_SDK_ROOT:-$ANDROID_HOME}/build-tools/36.0.0/aapt"
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
+          BADGING="$($AAPT dump badging "$APK" | head -1)"
+          echo "$BADGING"
+          VERSION_CODE="$(echo "$BADGING" | sed -n "s/.*versionCode='\([^']*\)'.*/\1/p")"
+          VERSION_NAME="$(echo "$BADGING" | sed -n "s/.*versionName='\([^']*\)'.*/\1/p")"
+          test -n "$VERSION_CODE" && test -n "$VERSION_NAME"
+          echo "version_code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
+          echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
 
-      - name: Collect APK + generate apk-info.json
+      - name: Collect verified Release APK and metadata
+        env:
+          APK_VERSION_CODE: ${{ steps.apk.outputs.version_code }}
+          APK_VERSION_NAME: ${{ steps.apk.outputs.version_name }}
         run: |
           mkdir -p public/downloads
-          cp android/app/build/outputs/apk/debug/app-debug.apk public/downloads/hatsally.apk
+          cp android/app/build/outputs/apk/release/app-release.apk public/downloads/hatsally.apk
           node scripts/apk-info.mjs
           cat public/downloads/apk-info.json
-          ls -lh public/downloads/
 
-      - name: Upload APK artifact
+      - name: Upload signed Release APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: hatsally-apk
+          name: hatsally-release-apk-${{ steps.apk.outputs.version_name }}
           path: public/downloads/hatsally.apk
           retention-days: 30
 
-      - name: Publish GitHub Release (apk-latest)
+      - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: apk-latest
-          name: "هتصلي APK - أحدث نسخة 📱"
+          name: "هتصلي APK ${{ steps.apk.outputs.version_name }} 📱"
           body: |
-            ## هتصلي يعني هتصلي - منبه الفجر الذكي 📱
-
-            حمّل ملف **hatsally.apk** وثبّته على هاتفك الأندرويد مباشرة.
-
-            ### طريقة التثبيت:
-            1. حمّل الملف على هاتفك
-            2. افتح الملف من التنزيلات
-            3. اسمح بـ "التثبيت من مصادر غير معروفة" إذا طُلب منك
-            4. اضغط تثبيت ثم افتح التطبيق 🕌
-
-            > تم تصميم هذا البرنامج لإيقاظك لصلاة الفجر وجميع الصلوات فلا تنسانا من صالح دعائكم 🤍
-
-            _بُني تلقائياً من `${{ github.ref_name }}` - run #${{ github.run_number }}_
+            Signed production Release APK.
+            Version: ${{ steps.apk.outputs.version_name }}
+            Version code: ${{ steps.apk.outputs.version_code }}
           files: public/downloads/hatsally.apk
 
-      - name: Commit APK back to branch (for in-site download button)
+      - name: Commit verified Release APK back to branch
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add public/downloads/hatsally.apk public/downloads/apk-info.json
-          if git diff --staged --quiet; then
-            echo "No APK changes to commit."
-            exit 0
-          fi
-          git commit -m "📱 تحديث ملف APK (بناء تلقائي #${{ github.run_number }}) [skip ci]"
+          if git diff --staged --quiet; then exit 0; fi
+          git commit -m "📱 signed Release APK ${{ steps.apk.outputs.version_name }} [skip ci]"
           git push

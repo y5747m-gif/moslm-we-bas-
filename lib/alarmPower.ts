@@ -15,7 +15,9 @@
 import { registerPlugin } from "@capacitor/core";
 
 /** إصدار المحرك الأصلي الذي تتوقعه هذه الواجهة */
-export const REQUIRED_ENGINE_VERSION = 2;
+import { ALARM_ENGINE_VERSION } from "./alarmConstants";
+
+export const REQUIRED_ENGINE_VERSION = ALARM_ENGINE_VERSION;
 
 /** حالة المحرك الأصلي كما يُبلغ عنها الهاتف */
 export interface NativeAlarmState {
@@ -34,8 +36,11 @@ export interface NativeAlarmState {
   /** -1 = للأبد */
   durationDays: number;
   startMillis: number;
-  /** آخر يوم رنّ فيه "yyyy-MM-dd" */
+  /** آخر يوم بدأ فيه الرنين فعلياً "yyyy-MM-dd" */
   lastFiredKey: string;
+  lastMissedKey: string;
+  verificationRequired: boolean;
+  scheduleStatus: "EXACT_SCHEDULED" | "INEXACT_SCHEDULED" | "FAILED" | "NO_PERMISSION" | "EXPIRED" | "NO_VALID_TIME" | "NO_VALID_DAYS";
   graceMinutes: number;
   /** الموعد القادم (epoch millis) أو 0 */
   nextFireAt: number;
@@ -51,7 +56,10 @@ export interface NativeAlarmState {
   serviceRunning: boolean;
   /** إذن المنبهات الدقيقة */
   exactAlarms: boolean;
+  exactAlarmPermission: boolean;
   ignoringBattery: boolean;
+  /** true يعني أن Android ما زال يطبّق تحسين البطارية */
+  batteryOptimization: boolean;
   notificationsEnabled: boolean;
   fullScreenIntent: boolean;
   /** الموعد فات ضمن المهلة ولم نرنّ بعد (لحاق) */
@@ -81,7 +89,6 @@ export interface AlarmPowerPlugin {
   getState(): Promise<NativeAlarmState>;
   startRinging(): Promise<NativeAlarmState>;
   stopRinging(): Promise<NativeAlarmState>;
-  markFired(): Promise<NativeAlarmState>;
   testRing(options: { delaySeconds: number }): Promise<NativeAlarmState & { testAt: number; testWasArmed: boolean }>;
   hasFullScreenIntent(): Promise<{ value: boolean }>;
   openFullScreenIntentSettings(): Promise<void>;

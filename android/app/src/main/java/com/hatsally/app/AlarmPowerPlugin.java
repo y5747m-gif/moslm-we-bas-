@@ -44,7 +44,7 @@ public class AlarmPowerPlugin extends Plugin {
     public static final String TAG = "HatSallyPlugin";
 
     /** إصدار المحرك الأصلي - تتحقق منه الواجهة لتعرف أن النسخة المثبتة حديثة */
-    public static final int ENGINE_VERSION = 2;
+    public static final int ENGINE_VERSION = AlarmConstants.ENGINE_VERSION;
 
     private PowerManager.WakeLock wakeLock;
     private int savedAlarmVolume = -1;
@@ -73,17 +73,21 @@ public class AlarmPowerPlugin extends Plugin {
             Context ctx = getContext();
             AlarmStore.Config cfg = AlarmStore.load(ctx);
 
-            cfg.time = normalizeTime(readString(call, "time", cfg.time));
+            String requestedTime = readString(call, "time", cfg.time);
+            cfg.time = requestedTime == null ? "" : requestedTime.trim();
             cfg.days = readDays(call, cfg.days);
             cfg.name = readString(call, "name", cfg.name);
             String lang = readString(call, "lang", cfg.lang);
             cfg.lang = (lang != null && lang.toLowerCase(Locale.US).startsWith("en")) ? "en" : "ar";
             cfg.startMillis = readStartMillis(call, cfg.startMillis);
             cfg.durationDays = readDuration(call, cfg.durationDays);
-            cfg.graceMinutes = readInt(call, "graceMinutes", AlarmStore.DEFAULT_GRACE_MINUTES);
+            cfg.graceMinutes = AlarmConstants.DEFAULT_GRACE_MINUTES;
             // تسليح جديد = يوم جديد (لا نرث علامة رنين قديم)
             Boolean keepFired = call.getBoolean("keepLastFired");
-            if (keepFired == null || !keepFired) cfg.lastFiredKey = null;
+            if (keepFired == null || !keepFired) {
+                cfg.lastFiredKey = null;
+                cfg.lastMissedKey = null;
+            }
             cfg.armed = true;
 
             AlarmStore.save(ctx, cfg);
@@ -129,8 +133,6 @@ public class AlarmPowerPlugin extends Plugin {
                 long now = System.currentTimeMillis();
                 long due = AlarmScheduler.dueRingMillis(cfg, now);
                 if (due > 0L && !AlarmStore.isRinging(ctx)) {
-                    AlarmStore.markFiredNow(ctx);
-                    AlarmStore.setRinging(ctx, true);
                     AlarmScheduler.startGuardService(ctx, AlarmGuardService.ACTION_RING);
                 } else {
                     AlarmScheduler.startGuardService(ctx, AlarmGuardService.ACTION_GUARD);
@@ -184,19 +186,6 @@ public class AlarmPowerPlugin extends Plugin {
         }
     }
 
-    /** علّم أن اليوم رنّ (يمنع تكرار الرنين في نفس اليوم) */
-    @PluginMethod
-    public void markFired(PluginCall call) {
-        try {
-            Context ctx = getContext();
-            AlarmStore.markFiredNow(ctx);
-            AlarmScheduler.scheduleNext(ctx);
-            call.resolve(buildState(ctx));
-        } catch (Throwable t) {
-            call.reject("markFired failed: " + t.getMessage());
-        }
-    }
-
     /**
      * اختبار حقيقي للمسار الكامل: جدولة موعد فعلي بعد delaySeconds
      * فيرنّ الهاتف بالضبط كما يرنّ وقت الفجر (صوت + اهتزاز + إشعار).
@@ -210,6 +199,10 @@ public class AlarmPowerPlugin extends Plugin {
             if (delay > 600) delay = 600;
             long at = System.currentTimeMillis() + (delay * 1000L);
 
+            if (!AlarmScheduler.canScheduleExact(ctx)) {
+                call.reject("EXACT_ALARM_PERMISSION_REQUIRED");
+                return;
+            }
             AlarmStore.Config cfg = AlarmStore.load(ctx);
             boolean wasArmed = cfg.armed;
             AlarmManager am = (AlarmManager) ctx.getSystemService(Context.ALARM_SERVICE);
@@ -219,14 +212,10 @@ public class AlarmPowerPlugin extends Plugin {
             }
             // PendingIntent مستقل: لا يُلغي الموعد الحقيقي ولا يستهلك رنين اليوم
             PendingIntent pi = AlarmScheduler.testPendingIntent(ctx);
-            try {
-                am.setAlarmClock(
-                    new AlarmManager.AlarmClockInfo(at, AlarmScheduler.openStatusPendingIntent(ctx)),
-                    pi
-                );
-            } catch (Throwable t) {
-                am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi);
-            }
+            am.setAlarmClock(
+                new AlarmManager.AlarmClockInfo(at, AlarmScheduler.openStatusPendingIntent(ctx)),
+                pi
+            );
             AlarmScheduler.startGuardService(ctx, AlarmGuardService.ACTION_GUARD);
 
             JSObject ret = buildState(ctx);
@@ -498,7 +487,10 @@ public class AlarmPowerPlugin extends Plugin {
         ret.put("durationDays", cfg.durationDays);
         ret.put("startMillis", cfg.startMillis);
         ret.put("lastFiredKey", cfg.lastFiredKey == null ? "" : cfg.lastFiredKey);
-        ret.put("graceMinutes", cfg.graceMinutes);
+        ret.put("lastMissedKey", cfg.lastMissedKey == null ? "" : cfg.lastMissedKey);
+        ret.put("verificationRequired", AlarmStore.isVerificationRequired(ctx));
+        ret.put("scheduleStatus", AlarmStore.scheduleStatus(ctx));
+        ret.put("graceMinutes", AlarmConstants.DEFAULT_GRACE_MINUTES);
         ret.put("nextFireAt", next);
         ret.put("nextFireIso", next > 0L ? iso(next) : "");
         ret.put("nextFireText", next > 0L ? AlarmTexts.whenText(next, cfg.lang) : "");
@@ -506,8 +498,12 @@ public class AlarmPowerPlugin extends Plugin {
         ret.put("alarmPendingInSystem", scheduledAt > now);
         ret.put("systemNextAlarmAt", systemNextAlarmClock(ctx));
         ret.put("serviceRunning", AlarmGuardService.isRunning());
-        ret.put("exactAlarms", AlarmScheduler.canScheduleExact(ctx));
-        ret.put("ignoringBattery", AlarmScheduler.isIgnoringBatteryOptimizations(ctx));
+        boolean exactPermission = AlarmScheduler.canScheduleExact(ctx);
+        boolean batteryOptimization = !AlarmScheduler.isIgnoringBatteryOptimizations(ctx);
+        ret.put("exactAlarms", exactPermission); // توافق قديم
+        ret.put("exactAlarmPermission", exactPermission);
+        ret.put("ignoringBattery", !batteryOptimization); // توافق قديم
+        ret.put("batteryOptimization", batteryOptimization);
         ret.put("notificationsEnabled", notificationsEnabled(ctx));
         ret.put("fullScreenIntent", fullScreenIntentAllowed(ctx));
         ret.put("dueNow", AlarmScheduler.dueRingMillis(cfg, now) > 0L);
@@ -636,7 +632,8 @@ public class AlarmPowerPlugin extends Plugin {
     private int[] readDays(PluginCall call, int[] fallback) {
         try {
             JSArray arr = call.getArray("days");
-            if (arr == null || arr.length() == 0) return fallback;
+            if (arr == null) return fallback;
+            if (arr.length() == 0) return new int[0];
             int[] tmp = new int[arr.length()];
             int n = 0;
             for (int i = 0; i < arr.length(); i++) {
@@ -674,15 +671,17 @@ public class AlarmPowerPlugin extends Plugin {
         if (v == null) return fallback;
         if (v instanceof Number) {
             int d = ((Number) v).intValue();
-            return d > 0 ? d : AlarmStore.FOREVER;
+            if (d == 7 || d == 14 || d == 30) return d;
+            throw new IllegalArgumentException("durationDays must be forever, 7, 14, or 30");
         }
         String s = v.toString().trim();
-        if ("forever".equalsIgnoreCase(s) || s.length() == 0) return AlarmStore.FOREVER;
+        if ("forever".equalsIgnoreCase(s)) return AlarmStore.FOREVER;
         try {
-            int d = (int) Double.parseDouble(s);
-            return d > 0 ? d : AlarmStore.FOREVER;
-        } catch (Throwable t) {
-            return fallback;
+            int d = Integer.parseInt(s);
+            if (d == 7 || d == 14 || d == 30) return d;
+        } catch (NumberFormatException ignored) {
+            // throw below
         }
+        throw new IllegalArgumentException("durationDays must be forever, 7, 14, or 30");
     }
 }

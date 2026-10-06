@@ -55,7 +55,6 @@ import {
   cancelNativeAlarm,
   syncNativeAlarm,
   getNativeAlarmState,
-  markNativeFired,
   testNativeRing,
   nativeEngineAvailable,
   notifyNative,
@@ -858,13 +857,14 @@ export default function Page() {
   const [showUpdateBanner, setShowUpdateBanner] = useState(false);
   const [updateInfo, setUpdateInfo] = useState<{ version: string; message: string } | null>(null);
   const [justUpdated, setJustUpdated] = useState(false);
-  const [appVersion] = useState("5.3.0-reliable-native-alarm");
+  const [appVersion] = useState("5.3.1-native-engine-v3");
 
   // Native APK + real APK download states
   const [isNativeApp, setIsNativeApp] = useState(false);
   // حالة المحرك الأصلي (الحارس + الإشعار المثبت + الموعد المسجل في النظام)
   const [nativeState, setNativeState] = useState<NativeAlarmState | null>(null);
   const [nativeEngineOk, setNativeEngineOk] = useState<boolean | null>(null);
+  const [nativeHydrated, setNativeHydrated] = useState(false);
   const [guardTesting, setGuardTesting] = useState(false);
   const [apkInfo, setApkInfo] = useState<ApkInfo | null>(null);
   const [apkProgress, setApkProgress] = useState(0);
@@ -1516,15 +1516,16 @@ export default function Page() {
   }, [isMuted, stopOscillatorsOnly]);
 
   useEffect(() => {
-    if (!isAlarmActive || alarmStage !== "idle") return;
-    runAlarmCheck(); // فحص فوري عند التفعيل (يلحق بالموعد إن حان)
+    // داخل APK لا يوجد JavaScript clock trigger إطلاقاً؛ AlarmManager وحده.
+    if (isNativeApp || !isAlarmActive || alarmStage !== "idle") return;
+    runAlarmCheck(); // نسخة المتصفح فقط
     const interval = setInterval(runAlarmCheck, 1000);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAlarmActive, alarmStage, alarmTime, selectedDays, durationDays, alarmStartDate]);
+  }, [isNativeApp, isAlarmActive, alarmStage, alarmTime, selectedDays, durationDays, alarmStartDate]);
 
   useEffect(() => {
-    if (alarmStage === "idle" || alarmStage === "verification" || alarmStage === "completed") return;
+    if (isNativeApp || alarmStage === "idle" || alarmStage === "verification" || alarmStage === "completed") return;
     const escalationTime = fastMode ? 15 : 5 * 60;
     const extremeTime = fastMode ? 30 : 10 * 60;
     const interval = setInterval(() => {
@@ -1552,23 +1553,23 @@ export default function Page() {
     }, 1000);
     escalationIntervalRef.current = interval as any;
     return () => clearInterval(interval);
-  }, [alarmStage, fastMode, userName, playAnnoyingSounds, playExtremeSounds, speakWakeUp]);
+  }, [isNativeApp, alarmStage, fastMode, userName, playAnnoyingSounds, playExtremeSounds, speakWakeUp]);
 
   // قفل يمنع الرنين المزدوج: محرك الويب + المحرك الأصلي + مستمع التنبيه
   // قد يكتشفون الموعد في نفس اللحظة (صوت ونداء مضاعف = كارثة 😅)
   const ringLockRef = useRef(false);
 
-  const triggerAlarm = useCallback((opts?: { demo?: boolean }) => {
-    // علّم اليوم كرنّ (مرة واحدة فقط) - زر التجربة لا يُعلَّم حتى لا يلغي الرنين الحقيقي
-    if (!opts?.demo) {
+  const triggerAlarm = useCallback((opts?: { demo?: boolean; nativeOrigin?: boolean }) => {
+    const fromNativeEngine = opts?.nativeOrigin === true;
+    // داخل APK لا تكتب React حالة fired ولا تبدأ Native من JS؛ AlarmReceiver
+    // والخدمة الأصلية هما المصدر الوحيد. هذا الفرع للويب فقط.
+    if (!opts?.demo && !fromNativeEngine) {
       if (ringLockRef.current) {
         console.log("🔒 ring already started - ignoring duplicate trigger");
         return;
       }
       ringLockRef.current = true;
       try { localStorage.setItem("hatsally-last-fired", getTodayKey(new Date())); } catch {}
-      // أخبر المحرك الأصلي أيضاً حتى لا يرنّ مرة ثانية في نفس اليوم
-      void markNativeFired();
     }
     // فتح قفل الصوت: المتصفح يعلّق AudioContext بدون تفاعل سابق فيرنّ صامتاً!
     try {
@@ -1581,7 +1582,12 @@ export default function Page() {
     setTimeSinceRinging(0);
     // تسخين محرك كشف الوجه مبكراً حتى يكون جاهزاً عند التحقق
     warmUpVerification();
-    // فرض الاستيقاظ: صوت أقصى + شاشة مستيقظة فوق القفل
+    if (fromNativeEngine) {
+      // الصوت/الاهتزاز/الشاشة تعمل بالفعل من AlarmRinger. الواجهة هنا
+      // مستهلك للحالة فقط ولا تشغّل WebAudio أو TTS أو markFired.
+      return;
+    }
+    // نسخة المتصفح فقط: WebAudio/WakeLock أفضل جهد وليست ضمان منبه نظام.
     void enforceRinging();
     if (userName) speakWakeUp(userName, false);
     playGentleTone();
@@ -1592,10 +1598,10 @@ export default function Page() {
     if ("vibrate" in navigator) {
       navigator.vibrate([1000, 500, 1000, 500, 2000]);
     }
-    if (navigator.serviceWorker?.controller) {
-      navigator.serviceWorker?.controller.postMessage({ type: "TRIGGER_ALARM", name: userName, stage: "ringing" });
+    if (!isNativeApp && navigator.serviceWorker?.controller) {
+      navigator.serviceWorker.controller.postMessage({ type: "TRIGGER_ALARM", name: userName, stage: "ringing" });
     }
-  }, [userName, speakWakeUp, playGentleTone]);
+  }, [isNativeApp, userName, speakWakeUp, playGentleTone]);
 
   // نص الرنين القادم + العد التنازلي الحي (يُعاد حسابه كل ثانية مع عدّاد currentTime)
   const renderNextRing = () => {
@@ -1614,7 +1620,7 @@ export default function Page() {
 
   // الفحص الموحد للموعد: العدّاد الدوري + اللحاق عند الفتح/الاستئناف (الضغط على التنبيه وهو مغلق)
   const runAlarmCheck = useCallback(() => {
-    if (!isAlarmActive || alarmStage !== "idle") return;
+    if (isNativeApp || !isAlarmActive || alarmStage !== "idle") return;
     let lastFired: string | null = null;
     try { lastFired = localStorage.getItem("hatsally-last-fired"); } catch {}
     const decision = decideAlarm(new Date(), {
@@ -1635,7 +1641,7 @@ export default function Page() {
       try { localStorage.setItem("hatsally-alarm-active", "false"); } catch {}
       void cancelNativeAlarm();
     }
-  }, [isAlarmActive, alarmStage, alarmTime, selectedDays, durationDays, alarmStartDate, triggerAlarm]);
+  }, [isNativeApp, isAlarmActive, alarmStage, alarmTime, selectedDays, durationDays, alarmStartDate, triggerAlarm]);
 
   // فكّ قفل الرنين عندما يعود المنبه للخمول أو يكتمل التحقق
   useEffect(() => {
@@ -1665,10 +1671,12 @@ export default function Page() {
     if (!isNativeApp) return;
     let off: (() => void) | null = null;
     void onNativeAlarmTap(() => {
-      if (alarmStageRef.current === "idle") {
-        console.log("⏰ Ringing from native notification tap");
-        triggerAlarmRef.current();
-      }
+      // الضغط على الإشعار لا يثبت حلول الموعد؛ اقرأ حالة Android أولاً.
+      void getNativeAlarmState().then((st) => {
+        if (st?.ringing && alarmStageRef.current === "idle") {
+          triggerAlarmRef.current({ nativeOrigin: true });
+        }
+      });
     }).then((fn) => { off = fn; });
     return () => { if (off) off(); };
   }, [isNativeApp]);
@@ -1721,10 +1729,21 @@ export default function Page() {
       const st = await getNativeAlarmState();
       if (stopped || !st) return;
       setNativeState(st);
+      if (!nativeHydrated) {
+        // داخل APK تكون SharedPreferences هي المصدر الأساسي، وReact مجرد عرض.
+        setAlarmTime(st.time || "05:00");
+        setUserName(st.name || "");
+        setSelectedDays(st.days.split(",").map(Number).filter((d) => d >= 0 && d <= 6));
+        setDurationDays(st.durationDays === -1 ? "forever" : st.durationDays);
+        setAlarmStartDate(st.startMillis > 0 ? new Date(st.startMillis).toISOString() : null);
+        setIsAlarmActive(st.armed);
+        setNativeHydrated(true);
+      }
       if (st.ringing && alarmStageRef.current === "idle") {
         console.log("⏰ Native engine is ringing → starting in-app ring + escalation");
-        try { localStorage.setItem("hatsally-last-fired", getTodayKey(new Date())); } catch {}
-        triggerAlarmRef.current();
+        triggerAlarmRef.current({ nativeOrigin: true });
+      } else if (st.verificationRequired && alarmStageRef.current === "idle") {
+        setAlarmStage("verification");
       }
     };
     void poll(true);
@@ -1743,27 +1762,22 @@ export default function Page() {
       window.removeEventListener("focus", onReturn);
       window.removeEventListener("hatsallyAlarmFire" as never, onNativeFire as never);
     };
-  }, [isNativeApp]);
+  }, [isNativeApp, nativeHydrated]);
 
   /**
    * شفاء ذاتي: أي تغيير في الوقت/الأيام/المدة/الاسم يعيد تسليح المحرك
    * الأصلي تلقائياً (الخلل القديم كان يترك الجدولة القديمة في النظام!).
    */
   useEffect(() => {
-    if (!isNativeApp || !isAlarmActive) return;
+    if (!isNativeApp || !nativeHydrated || !isAlarmActive) return;
     const id = window.setTimeout(() => {
       void (async () => {
-        // لو رنّ اليوم فعلاً حسب الواجهة: أخبر المحرك الأصلي حتى لا يكرره
-        try {
-          if (localStorage.getItem("hatsally-last-fired") === getTodayKey(new Date())) {
-            await markNativeFired();
-          }
-        } catch {}
+        // Android SharedPreferences هو المصدر؛ لا تنقل lastFired من localStorage.
         await armNativeEngine({ keepLastFired: true });
       })();
     }, 900);
     return () => window.clearTimeout(id);
-  }, [isNativeApp, isAlarmActive, alarmTime, selectedDays, durationDays, alarmStartDate, userName, language, armNativeEngine]);
+  }, [isNativeApp, nativeHydrated, isAlarmActive, alarmTime, selectedDays, durationDays, alarmStartDate, userName, language, armNativeEngine]);
 
   /** اختبار حقيقي: يرنّ الهاتف فعلاً بعد delaySeconds عبر نفس مسار الفجر */
   const handleTestNativeRing = useCallback(async () => {
@@ -1788,13 +1802,15 @@ export default function Page() {
         const data = event.data;
         if (!data) return;
         if (data.type === "ALARM_TRIGGERED") {
-          console.log("🔔 SW triggered alarm", data);
+          if (isNativeApp) return; // APK trusts AlarmReceiver only
+          console.log("🔔 SW triggered browser alarm", data);
           if (alarmStage === "idle") {
             triggerAlarm();
           }
         }
         if (data.type === "NOTIFICATION_WAKE") {
-          console.log("🔔 SW notification tapped - waking", data);
+          if (isNativeApp) return;
+          console.log("🔔 SW browser notification tapped", data);
           if (alarmStage === "idle") {
             triggerAlarm();
           }
@@ -1907,8 +1923,8 @@ export default function Page() {
     setIsAlarmActive(true);
     setAlarmStage("idle");
     setTimeSinceRinging(0);
-    if (navigator.serviceWorker?.controller) {
-      navigator.serviceWorker?.controller.postMessage({
+    if (!isNativeApp && navigator.serviceWorker?.controller) {
+      navigator.serviceWorker.controller.postMessage({
         type: "SET_ALARM",
         time: alarmTime,
         name: userName,
@@ -3147,11 +3163,28 @@ export default function Page() {
                   {nativeState?.ringing && (
                     <p className="text-[10px] mt-1 font-bold text-red-500 animate-pulse">{t.guardRingingNow}</p>
                   )}
+                  {nativeState && (
+                    <details className={`mt-3 rounded-xl p-2 ${isDark ? "bg-black/20" : "bg-white/70"}`}>
+                      <summary className="text-[10px] font-bold cursor-pointer">{language === "ar" ? "تشخيص المحرك المتقدم" : "Advanced engine diagnostics"}</summary>
+                      <div className="mt-2 text-[9px] font-mono leading-relaxed" dir="ltr">
+                        <div>Engine v{nativeState.engineVersion} • Native APK ✓</div>
+                        <div>Schedule: {nativeState.scheduleStatus}</div>
+                        <div>Armed {String(nativeState.armed)} • Ringing {String(nativeState.ringing)}</div>
+                        <div>Next: {nativeState.nextFireIso || "—"}</div>
+                        <div>System: {nativeState.systemNextAlarmAt ? new Date(nativeState.systemNextAlarmAt).toISOString() : "—"}</div>
+                        <div>Last fired: {nativeState.lastFiredKey || "—"}</div>
+                        <div>Duration: {nativeState.durationDays === -1 ? "forever" : nativeState.durationDays}</div>
+                        <div>Start: {nativeState.startMillis ? new Date(nativeState.startMillis).toISOString() : "—"}</div>
+                        <div>Now: {currentTime.toISOString()}</div>
+                        <div>Timezone: {Intl.DateTimeFormat().resolvedOptions().timeZone}</div>
+                      </div>
+                    </details>
+                  )}
 
                   <p className={`text-[9px] mt-3 mb-1.5 font-bold ${textFaint}`}>{t.guardPermsTitle}</p>
                   <div className="flex flex-wrap gap-1.5">
                     {[
-                      { label: t.guardPermExact, ok: !!nativeState?.exactAlarms },
+                      { label: t.guardPermExact, ok: !!nativeState?.exactAlarmPermission },
                       { label: t.guardPermBattery, ok: !!nativeState?.ignoringBattery },
                       { label: t.guardPermNotifications, ok: !!nativeState?.notificationsEnabled },
                       { label: t.guardPermFullScreen, ok: !!nativeState?.fullScreenIntent },
@@ -3754,11 +3787,18 @@ export default function Page() {
                     <span className="text-xs px-2 py-0.5 rounded-full bg-black/10 ml-2">{alarmTime}</span>
                   </div>
                 ) : (
-                  <button onClick={handleInstallApp} className="group flex items-center justify-center gap-3 px-7 py-4 rounded-full bg-white text-black font-bold shadow-xl hover:bg-white/90 transition border border-zinc-200">
-                    <Download className="w-5 h-5" />
-                    {t.installNowBtn}
-                    <ArrowDown className="w-4 h-4 animate-bounce" />
-                  </button>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <button onClick={handleInstallApp} className="group flex items-center justify-center gap-3 px-7 py-4 rounded-full bg-white text-black font-bold shadow-xl hover:bg-white/90 transition border border-zinc-200">
+                      <Download className="w-5 h-5" />
+                      {language === "ar" ? "تثبيت كتطبيق PWA" : "Install as PWA"}
+                    </button>
+                    {isAndroidDevice() && (
+                      <a href="/downloads/hatsally.apk" download="hatsally.apk" className="flex items-center justify-center gap-2 px-7 py-4 rounded-full bg-emerald-500 text-black font-bold">
+                        <Smartphone className="w-5 h-5" />
+                        {language === "ar" ? "تحميل APK مباشر" : "Direct APK download"}
+                      </a>
+                    )}
+                  </div>
                 )}
                 <button onClick={() => setShowDownloadModal(true)} className={`flex items-center justify-center gap-2 px-7 py-4 rounded-full ${glassClass} font-semibold hover:bg-white/10 transition`}>
                   <MoreVertical className="w-5 h-5" />

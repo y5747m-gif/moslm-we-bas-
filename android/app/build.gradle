@@ -1,5 +1,10 @@
 apply plugin: 'com.android.application'
 
+def releaseKeystoreFile = System.getenv("ANDROID_KEYSTORE_FILE")
+def releaseKeyAlias = System.getenv("KEY_ALIAS")
+def releaseKeyPassword = System.getenv("KEY_PASSWORD")
+def releaseStorePassword = System.getenv("STORE_PASSWORD")
+
 android {
     namespace = "com.hatsally.app"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,8 +12,8 @@ android {
         applicationId "com.hatsally.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 53000
-        versionName "5.3.0"
+        versionCode 53100
+        versionName "5.3.1"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,10 +21,27 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        if (releaseKeystoreFile && releaseKeyAlias && releaseKeyPassword && releaseStorePassword) {
+            release {
+                storeFile file(releaseKeystoreFile)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+                enableV1Signing true
+                enableV2Signing true
+                enableV3Signing true
+                enableV4Signing true
+            }
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (signingConfigs.findByName("release") != null) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 }

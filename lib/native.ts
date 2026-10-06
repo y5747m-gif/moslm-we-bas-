@@ -221,7 +221,7 @@ export async function scheduleNativeAlarm(opts: ScheduleAlarmOptions): Promise<b
       // لا يكفي أن تكون الإعدادات محفوظة: النجاح الحقيقي يعني أن Android
       // يحمل موعداً مستقبلياً (أو أن الرنين بدأ بالفعل). سابقاً كانت الواجهة
       // تعرض «تم الضبط» حتى لو فشلت كل استدعاءات AlarmManager.
-      return !!state?.armed && (!!state?.alarmPendingInSystem || !!state?.ringing);
+      return !!state?.armed && state?.scheduleStatus === "EXACT_SCHEDULED" && !!state?.exactAlarmPermission;
     } catch (e) {
       console.warn("[Native] engine setAlarm failed:", e);
       return false;
@@ -278,17 +278,6 @@ export async function stopNativeRinging(): Promise<void> {
     await AlarmPower.stopRinging();
   } catch (e) {
     console.warn("[Native] stopRinging failed:", e);
-  }
-}
-
-/** علّم أن اليوم رنّ حتى لا يرنّ المحرك الأصلي مرة ثانية في نفس اليوم */
-export async function markNativeFired(): Promise<void> {
-  if (!isNativeApp()) return;
-  if (!(await nativeEngineAvailable())) return;
-  try {
-    await AlarmPower.markFired();
-  } catch {
-    /* تجاهل */
   }
 }
 

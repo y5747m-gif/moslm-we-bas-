@@ -37,8 +37,7 @@ public class BootReceiver extends BroadcastReceiver {
             if (due > 0L) {
                 // فات الموعد ضمن المهلة (إعادة تشغيل/تغيير وقت) → اللحاق فوراً
                 Log.i(TAG, "catch-up ring after " + action);
-                AlarmStore.markFiredNow(context);
-                AlarmStore.setRinging(context, true);
+                // الخدمة وحدها تثبت lastFired بعد نجاح بدء الصوت.
                 AlarmScheduler.startGuardService(context, AlarmGuardService.ACTION_RING);
             } else {
                 AlarmScheduler.startGuardService(context, AlarmGuardService.ACTION_GUARD);

@@ -29,6 +29,31 @@ public final class AlarmScheduler {
 
     public static final String TAG = "HatSallyAlarm";
 
+    public enum ScheduleStatus {
+        EXACT_SCHEDULED,
+        INEXACT_SCHEDULED,
+        FAILED,
+        NO_PERMISSION,
+        EXPIRED,
+        NO_VALID_TIME,
+        NO_VALID_DAYS
+    }
+
+    public static final class ScheduleResult {
+        public final ScheduleStatus status;
+        public final long scheduledAt;
+        public final boolean exact;
+        ScheduleResult(ScheduleStatus status, long scheduledAt, boolean exact) {
+            this.status = status;
+            this.scheduledAt = scheduledAt;
+            this.exact = exact;
+        }
+        public boolean isRegistered() {
+            return status == ScheduleStatus.EXACT_SCHEDULED || status == ScheduleStatus.INEXACT_SCHEDULED;
+        }
+        public boolean isFullySuccessful() { return status == ScheduleStatus.EXACT_SCHEDULED; }
+    }
+
     /** بث داخلي صريح: حان موعد الرنين */
     public static final String ACTION_FIRE = "com.hatsally.app.action.ALARM_FIRE";
     /** بث داخلي: تأكد من الحارس والإشعار المثبت */
@@ -49,8 +74,9 @@ public final class AlarmScheduler {
     /** إرجاع [ساعة، دقيقة] أو null لو الوقت فاسد */
     public static int[] parseTime(String time) {
         if (time == null) return null;
-        String[] parts = time.split(":");
-        if (parts.length < 2) return null;
+        if (!time.matches("^(?:[01]\\d|2[0-3]):[0-5]\\d$")) return null;
+        String[] parts = time.split(":", -1);
+        if (parts.length != 2) return null;
         try {
             int h = Integer.parseInt(parts[0].trim());
             int m = Integer.parseInt(parts[1].trim());
@@ -108,7 +134,8 @@ public final class AlarmScheduler {
             if (candidate <= fromMillis) continue;
             if (isExpired(cfg, candidate)) continue;
             // رنّ اليوم بالفعل؟ لا نكرره
-            if (cfg.lastFiredKey != null && cfg.lastFiredKey.equals(AlarmStore.dayKey(candidate))) continue;
+            String candidateKey = AlarmStore.dayKey(candidate);
+            if (candidateKey.equals(cfg.lastFiredKey) || candidateKey.equals(cfg.lastMissedKey)) continue;
             return candidate;
         }
         return -1L;
@@ -124,7 +151,7 @@ public final class AlarmScheduler {
         if (hm == null) return -1L;
         if (isExpired(cfg, nowMillis)) return -1L;
         String todayKey = AlarmStore.dayKey(nowMillis);
-        if (todayKey.equals(cfg.lastFiredKey)) return -1L;
+        if (todayKey.equals(cfg.lastFiredKey) || todayKey.equals(cfg.lastMissedKey)) return -1L;
 
         Calendar c = Calendar.getInstance();
         c.setTimeInMillis(nowMillis);
@@ -138,8 +165,25 @@ public final class AlarmScheduler {
         if (nowMillis < scheduled) return -1L;
 
         long lateMinutes = (nowMillis - scheduled) / 60000L;
-        int grace = cfg.graceMinutes > 0 ? cfg.graceMinutes : AlarmStore.DEFAULT_GRACE_MINUTES;
-        return lateMinutes <= (long) grace ? scheduled : -1L;
+        return lateMinutes <= (long) AlarmConstants.DEFAULT_GRACE_MINUTES ? scheduled : -1L;
+    }
+
+    /** هل موعد اليوم تجاوز grace ولم يُعالج؟ */
+    public static boolean isMissedToday(AlarmStore.Config cfg, long nowMillis) {
+        if (cfg == null || !cfg.armed || isExpired(cfg, nowMillis)) return false;
+        int[] hm = parseTime(cfg.time);
+        if (hm == null) return false;
+        String key = AlarmStore.dayKey(nowMillis);
+        if (key.equals(cfg.lastFiredKey) || key.equals(cfg.lastMissedKey)) return false;
+        Calendar c = Calendar.getInstance();
+        c.setTimeInMillis(nowMillis);
+        int jsDay = AlarmStore.calendarDayToJs(c.get(Calendar.DAY_OF_WEEK));
+        if (!AlarmStore.containsDay(cfg.days, jsDay)) return false;
+        c.set(Calendar.HOUR_OF_DAY, hm[0]);
+        c.set(Calendar.MINUTE, hm[1]);
+        c.set(Calendar.SECOND, 0);
+        c.set(Calendar.MILLISECOND, 0);
+        return nowMillis - c.getTimeInMillis() > AlarmConstants.DEFAULT_GRACE_MINUTES * 60000L;
     }
 
     /** الموعد القادم (يقرأ الإعدادات من المخزن) */
@@ -226,76 +270,76 @@ public final class AlarmScheduler {
      * جدولة الموعد القادم في النظام.
      * يُرجع وقت الرنين المجدول (epoch millis) أو -1.
      */
-    public static long scheduleNext(Context ctx) {
+    public static ScheduleResult scheduleNextResult(Context ctx) {
         AlarmStore.Config cfg = AlarmStore.load(ctx);
         if (!cfg.armed) {
             cancel(ctx);
-            return -1L;
+            return remember(ctx, ScheduleStatus.FAILED, -1L, false);
+        }
+        if (parseTime(cfg.time) == null) {
+            cancel(ctx);
+            return remember(ctx, ScheduleStatus.NO_VALID_TIME, -1L, false);
+        }
+        if (cfg.days == null || cfg.days.length == 0) {
+            cancel(ctx);
+            return remember(ctx, ScheduleStatus.NO_VALID_DAYS, -1L, false);
         }
         long now = System.currentTimeMillis();
         if (isExpired(cfg, now)) {
-            Log.i(TAG, "alarm duration expired - disarming");
             AlarmStore.disarm(ctx);
             cancel(ctx);
-            return -1L;
+            return remember(ctx, ScheduleStatus.EXPIRED, -1L, false);
         }
 
+        if (isMissedToday(cfg, now)) {
+            AlarmStore.markMissedNow(ctx);
+            cfg = AlarmStore.load(ctx);
+        }
         long due = dueRingMillis(cfg, now);
         long next = computeNextFire(cfg, now);
         long target = due > 0L ? now + 1500L : next;
         if (target <= 0L) {
             cancel(ctx);
-            return -1L;
+            return remember(ctx, ScheduleStatus.FAILED, -1L, false);
         }
 
         AlarmManager am = (AlarmManager) ctx.getSystemService(Context.ALARM_SERVICE);
-        if (am == null) return -1L;
+        if (am == null) return remember(ctx, ScheduleStatus.FAILED, -1L, false);
         PendingIntent pi = firePendingIntent(ctx);
+        boolean exactPermission = canScheduleExact(ctx);
 
-        boolean ok = false;
-        if (due <= 0L) {
-            // setAlarmClock = أدق وأقوى واجهة: توقظ من Doze وتسمح ببدء خدمة أمامية
+        if (exactPermission) {
             try {
                 am.setAlarmClock(new AlarmManager.AlarmClockInfo(target, openStatusPendingIntent(ctx)), pi);
-                ok = true;
-            } catch (SecurityException e) {
-                Log.w(TAG, "setAlarmClock denied: " + e.getMessage());
+                AlarmStore.setScheduledAt(ctx, target);
+                return remember(ctx, ScheduleStatus.EXACT_SCHEDULED, target, true);
             } catch (Throwable t) {
-                Log.w(TAG, "setAlarmClock failed: " + t.getMessage());
-            }
-            if (!ok) {
-                try {
-                    am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, target, pi);
-                    ok = true;
-                } catch (Throwable t) {
-                    Log.w(TAG, "setExactAndAllowWhileIdle failed: " + t.getMessage());
-                }
-            }
-        }
-        if (!ok) {
-            // آخر حل: منبه غير دقيق لكنه يعمل أثناء Doze (اللحاق الفوري يستخدم هذا)
-            try {
-                am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, target, pi);
-                ok = true;
-            } catch (Throwable t) {
-                Log.w(TAG, "setAndAllowWhileIdle failed: " + t.getMessage());
-            }
-        }
-        if (!ok) {
-            try {
-                am.set(AlarmManager.RTC_WAKEUP, target, pi);
-                ok = true;
-            } catch (Throwable t) {
-                Log.e(TAG, "all alarm scheduling failed", t);
+                Log.e(TAG, "exact alarm scheduling failed", t);
+                return remember(ctx, ScheduleStatus.FAILED, -1L, false);
             }
         }
 
-        if (ok) {
+        // نسجل fallback غير دقيق كي لا يصبح المستخدم بلا أي تنبيه، لكن
+        // الحالة INEXACT لا تُعرض أبداً كنجاح كامل وتظل تطلب إذن exact.
+        try {
+            am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, target, pi);
             AlarmStore.setScheduledAt(ctx, target);
-            Log.i(TAG, "alarm scheduled at " + target + (due > 0L ? " (catch-up)" : ""));
-            return target;
+            return remember(ctx, ScheduleStatus.INEXACT_SCHEDULED, target, false);
+        } catch (Throwable t) {
+            Log.e(TAG, "inexact fallback failed without exact permission", t);
+            return remember(ctx, ScheduleStatus.NO_PERMISSION, -1L, false);
         }
-        return -1L;
+    }
+
+    private static ScheduleResult remember(Context ctx, ScheduleStatus status, long at, boolean exact) {
+        AlarmStore.setScheduleStatus(ctx, status.name());
+        if (at <= 0L) AlarmStore.setScheduledAt(ctx, 0L);
+        return new ScheduleResult(status, at, exact);
+    }
+
+    /** توافق مع الاستدعاءات القديمة؛ الحالة التفصيلية متاحة عبر scheduleNextResult. */
+    public static long scheduleNext(Context ctx) {
+        return scheduleNextResult(ctx).scheduledAt;
     }
 
     /** إلغاء الموعد المجدول في النظام (الحقيقي + الاختباري) */

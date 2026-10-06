@@ -5,6 +5,7 @@ export const dynamic = "force-static";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
+    id: "/",
     name: "هتصلي يعني هتصلي - منبه الفجر الذكي",
     short_name: "هتصلي",
     description: "تم تصميم هذا البرنامج لإيقاظك لصلاة الفجر وجميع الصلوات فلا تنسانا من صالح دعائكم 🤍 - منبه ذكي يناديك باسمك بصوت رجل، يفحص الصور بالذكاء الاصطناعي، ويعمل بدون إنترنت",

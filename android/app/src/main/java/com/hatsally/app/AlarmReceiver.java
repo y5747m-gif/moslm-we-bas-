@@ -71,8 +71,7 @@ public class AlarmReceiver extends BroadcastReceiver {
 
             // الاختبار الحقيقي: يقرع الهاتف بنفس المسار دون استهلاك موعد اليوم
             if (isTest) {
-                Log.i(TAG, "TEST fire - ringing without consuming today's alarm");
-                AlarmStore.setRinging(context, true);
+                Log.i(TAG, "TEST fire - native service will confirm actual ringing");
                 AlarmScheduler.startGuardService(context, AlarmGuardService.ACTION_RING_FORCE);
                 return;
             }
@@ -84,15 +83,10 @@ public class AlarmReceiver extends BroadcastReceiver {
                 return;
             }
 
-            // علّم اليوم + حالة الرنين قبل أي شيء حتى لا يتكرر الرنين
-            AlarmStore.markFiredNow(context);
-            AlarmStore.setRinging(context, true);
-
-            // الحارس يتكفل بالصوت والاهتزاز والنداء وإشعار ملء الشاشة
+            // لا markFired هنا. الخدمة تبدأ الرنان أولاً، وتعلّم اليوم فقط
+            // بعد نجاح مصدر الصوت، حتى لا يضيع الموعد إذا فشل بدء FGS.
             AlarmScheduler.startGuardService(context, AlarmGuardService.ACTION_RING);
-            // وجدولة الموعد القادم مباشرة (غداً أو اليوم المختار التالي)
-            long next = AlarmScheduler.scheduleNext(context);
-            Log.i(TAG, "alarm fired - next at " + AlarmScheduler.describeNext(next));
+            Log.i(TAG, "alarm delivered to foreground alarm service");
         } catch (Throwable t) {
             Log.e(TAG, "onReceive failed", t);
         }
