@@ -86,28 +86,36 @@ public final class AlarmRinger {
     // البدء
     // ------------------------------------------------------------------
 
-    public synchronized void start(AlarmStore.Config config) {
+    public synchronized boolean start(AlarmStore.Config config) {
         if (config != null) this.cfg = config;
         if (running) {
-            // استمرارية: جدّد النداء والقفل فقط
             handler.removeCallbacks(loop);
             handler.post(loop);
-            return;
+            return true;
         }
-        running = true;
         Log.i(TAG, "start ringing for " + (cfg.name == null ? "" : cfg.name));
         maxVolume();
         bypassDnd();
-        startSound();
+        // الصوت هو معيار نجاح الرنين. فشل TTS أو الاهتزاز لا يمنع الصوت،
+        // لكن لا نعلّم اليوم fired إن لم يبدأ أي مصدر صوت أصلاً.
+        boolean soundStarted = startSound();
+        if (!soundStarted) {
+            restoreVolume();
+            restoreDnd();
+            return false;
+        }
+        running = true;
         startVibration();
         initTts();
         keepAwake();
         handler.removeCallbacks(loop);
         handler.postDelayed(loop, LOOP_MS);
+        return true;
     }
 
     public synchronized void stop() {
-        if (!running && player == null && tts == null) return;
+        if (!running && player == null && tts == null && fallbackTone == null && toneGen == null
+            && !AlarmStore.hasOriginalVolumes(ctx)) return;
         running = false;
         Log.i(TAG, "stop ringing");
         handler.removeCallbacks(loop);
@@ -159,7 +167,7 @@ public final class AlarmRinger {
     // الصوت
     // ------------------------------------------------------------------
 
-    private void startSound() {
+    private boolean startSound() {
         Uri uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
         if (uri == null) uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE);
         if (uri == null) uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
@@ -179,7 +187,7 @@ public final class AlarmRinger {
                 mp.start();
                 player = mp;
                 Log.i(TAG, "alarm sound started: " + uri);
-                return;
+                return true;
             } catch (Throwable t) {
                 Log.w(TAG, "MediaPlayer failed (" + t.getMessage() + ") - fallback ringtone");
                 if (player != null) {
@@ -208,19 +216,23 @@ public final class AlarmRinger {
                 Log.w(TAG, "fallback ringtone failed: " + t.getMessage());
             }
         }
-        if (player == null && fallbackTone == null) startToneGenerator();
+        if (fallbackTone != null) return true;
+        if (player == null) return startToneGenerator();
+        return true;
     }
 
     private android.media.ToneGenerator toneGen;
 
     /** آخر حل: نغمات نظام على قناة المنبه (تعمل حتى بدون أي نغمة مثبتة) */
-    private void startToneGenerator() {
+    private boolean startToneGenerator() {
         try {
             toneGen = new android.media.ToneGenerator(AudioManager.STREAM_ALARM, 100);
             toneGen.startTone(android.media.ToneGenerator.TONE_CDMA_EMERGENCY_RINGBACK, 3000);
             Log.i(TAG, "ToneGenerator alarm started");
+            return true;
         } catch (Throwable t) {
             Log.e(TAG, "no sound source available: " + t.getMessage());
+            return false;
         }
     }
 
@@ -246,6 +258,7 @@ public final class AlarmRinger {
             if (savedAlarmVolume < 0) {
                 savedAlarmVolume = am.getStreamVolume(AudioManager.STREAM_ALARM);
                 savedMusicVolume = am.getStreamVolume(AudioManager.STREAM_MUSIC);
+                AlarmStore.saveOriginalVolumes(ctx, savedAlarmVolume, savedMusicVolume);
             }
             am.setStreamVolume(AudioManager.STREAM_ALARM, am.getStreamMaxVolume(AudioManager.STREAM_ALARM), 0);
             am.setStreamVolume(AudioManager.STREAM_MUSIC, am.getStreamMaxVolume(AudioManager.STREAM_MUSIC), 0);
@@ -257,9 +270,12 @@ public final class AlarmRinger {
     private void restoreVolume() {
         try {
             AudioManager am = (AudioManager) ctx.getSystemService(Context.AUDIO_SERVICE);
-            if (am != null && savedAlarmVolume >= 0) {
-                am.setStreamVolume(AudioManager.STREAM_ALARM, savedAlarmVolume, 0);
-                if (savedMusicVolume >= 0) am.setStreamVolume(AudioManager.STREAM_MUSIC, savedMusicVolume, 0);
+            if (am != null && (savedAlarmVolume >= 0 || AlarmStore.hasOriginalVolumes(ctx))) {
+                int alarm = AlarmStore.originalAlarmVolume(ctx, savedAlarmVolume);
+                int music = AlarmStore.originalMusicVolume(ctx, savedMusicVolume);
+                if (alarm >= 0) am.setStreamVolume(AudioManager.STREAM_ALARM, alarm, 0);
+                if (music >= 0) am.setStreamVolume(AudioManager.STREAM_MUSIC, music, 0);
+                AlarmStore.clearOriginalVolumes(ctx);
             }
         } catch (Throwable ignored) {
             // لا شيء

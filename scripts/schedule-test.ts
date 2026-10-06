@@ -113,5 +113,29 @@ console.log("🧪 schedule tests:");
   check("الثانية 37 = ring", r.action === "ring", r.action);
 }
 
+// الحدود الصارمة والمدة التقويمية
+{
+  const exact = decideAlarm(D("2026-09-11T05:00:00"), base({ days: [FRI] }));
+  check("عند الموعد بالضبط = ring", exact.action === "ring", exact.action);
+  const oneSecond = decideAlarm(D("2026-09-11T05:00:01"), base({ days: [FRI] }));
+  check("بعد الموعد بثانية = ring", oneSecond.action === "ring", oneSecond.action);
+  check("00:00 صالح", decideAlarm(D("2026-09-11T00:00:00"), base({ time: "00:00", days: [FRI] })).action === "ring");
+  for (const bad of ["24:00", "05:60", "abc", "5:00", "05:00:30"]) {
+    check(`وقت فاسد ${bad}`, decideAlarm(D("2026-09-11T04:00:00"), base({ time: bad })).action === "inactive");
+  }
+}
+{
+  const start = "2026-10-06T23:30:00";
+  check("مدة 7: آخر يوم صالح", !decideAlarm(D("2026-10-12T23:59:59"), base({ startDate: start, durationDays: 7 })).action.includes("expired"));
+  check("مدة 7: تنتهي 13 أكتوبر", decideAlarm(D("2026-10-13T00:00:00"), base({ startDate: start, durationDays: 7 })).action === "expired");
+  check("مدة 14 يوم", decideAlarm(D("2026-10-20T00:00:00"), base({ startDate: start, durationDays: 14 })).action === "expired");
+  check("مدة 30 يوم", decideAlarm(D("2026-11-05T00:00:00"), base({ startDate: start, durationDays: 30 })).action === "expired");
+  check("forever لا تنتهي", decideAlarm(D("2036-11-05T00:00:00"), base({ startDate: start, durationDays: "forever" })).action !== "expired");
+}
+{
+  const now = D("2026-09-11T05:02:00");
+  check("lastFired يوم سابق لا يمنع", decideAlarm(now, base({ days: [FRI], lastFiredKey: "2026-09-10" })).action === "ring");
+}
+
 console.log(`\n📊 ${pass} passed, ${fail} failed`);
 process.exit(fail > 0 ? 1 : 0);

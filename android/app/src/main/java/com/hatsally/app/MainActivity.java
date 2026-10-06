@@ -1,7 +1,6 @@
 package com.hatsally.app;
 
 import android.content.Intent;
-import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -61,52 +60,45 @@ public class MainActivity extends BridgeActivity {
         notifyWebOfAlarm(getIntent(), 600L);
     }
 
-    /** إظهار التطبيق فوق شاشة القفل وإضاءة الشاشة أثناء الرنين (أندرويد 8 وأقل) */
+    /** إظهار التطبيق فوق شاشة القفل فقط ما دام المحرك الأصلي يرن فعلاً. */
     @SuppressWarnings("deprecation")
     private void applyAlarmWindowFlags() {
         try {
             boolean ringing = AlarmStore.isRinging(this);
-            Intent intent = getIntent();
-            if (!ringing && intent != null) {
-                ringing = intent.getBooleanExtra("hatsally_fire", false);
-                Uri data = intent.getData();
-                if (!ringing && data != null) ringing = "1".equals(data.getQueryParameter("fire"));
-            }
-            if (!ringing) return;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
-                setShowWhenLocked(true);
-                setTurnScreenOn(true);
+                setShowWhenLocked(ringing);
+                setTurnScreenOn(ringing);
             }
-            getWindow()
-                .addFlags(
+            if (!ringing) {
+                getWindow().clearFlags(
                     WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
                         | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
                         | WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
                         | WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
                 );
+                return;
+            }
+            getWindow().addFlags(
+                WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
+                    | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+                    | WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+                    | WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
+            );
         } catch (Throwable ignored) {
             // لا شيء
         }
     }
 
-    /** إبلاغ الواجهة أن المنبه يرنّ (بداية فورية للرنين والتصعيد) */
+    /**
+     * إبلاغ الواجهة أن المنبه يرنّ. مصدر الحقيقة هو AlarmStore وليس رابط
+     * الفتح؛ فرابط إشعار الحارس قد يبقى في Intent بعد انتهاء الرنين.
+     */
     private void notifyWebOfAlarm(final Intent intent, long delayMs) {
         boolean fire = false;
         try {
-            if (intent != null) {
-                if (intent.getBooleanExtra("hatsally_fire", false)) fire = true;
-                Uri data = intent.getData();
-                if (data != null && "1".equals(data.getQueryParameter("fire"))) fire = true;
-            }
+            fire = AlarmStore.isRinging(this);
         } catch (Throwable ignored) {
             // لا شيء
-        }
-        if (!fire) {
-            try {
-                fire = AlarmStore.isRinging(this);
-            } catch (Throwable ignored) {
-                // لا شيء
-            }
         }
         if (!fire) return;
         jsHandler.postDelayed(

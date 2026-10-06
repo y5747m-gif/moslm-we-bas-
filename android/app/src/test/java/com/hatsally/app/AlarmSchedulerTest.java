@@ -113,6 +113,20 @@ public class AlarmSchedulerTest {
     }
 
     @Test
+    public void calendarDurationsExpireAtStartOfFollowingDay() {
+        long start = at(2026, 10, 6, 23, 30, 0);
+        AlarmStore.Config seven = cfg("05:00", ALL, start, 7, null);
+        assertFalse(AlarmScheduler.isExpired(seven, at(2026, 10, 12, 23, 59, 59)));
+        assertTrue(AlarmScheduler.isExpired(seven, at(2026, 10, 13, 0, 0, 0)));
+        AlarmStore.Config fourteen = cfg("05:00", ALL, start, 14, null);
+        assertFalse(AlarmScheduler.isExpired(fourteen, at(2026, 10, 19, 23, 59, 59)));
+        assertTrue(AlarmScheduler.isExpired(fourteen, at(2026, 10, 20, 0, 0, 0)));
+        AlarmStore.Config thirty = cfg("05:00", ALL, start, 30, null);
+        assertFalse(AlarmScheduler.isExpired(thirty, at(2026, 11, 4, 23, 59, 59)));
+        assertTrue(AlarmScheduler.isExpired(thirty, at(2026, 11, 5, 0, 0, 0)));
+    }
+
+    @Test
     public void forever_neverExpires() {
         long now = at(2030, 1, 1, 4, 0, 0);
         assertFalse(AlarmScheduler.isExpired(cfg("05:00", ALL, now, AlarmStore.FOREVER, null), now));
@@ -150,6 +164,9 @@ public class AlarmSchedulerTest {
         assertEquals(null, AlarmScheduler.parseTime("bad"));
         assertEquals(null, AlarmScheduler.parseTime(null));
         assertEquals(null, AlarmScheduler.parseTime("23:60"));
+        assertEquals(null, AlarmScheduler.parseTime("24:00"));
+        assertEquals(null, AlarmScheduler.parseTime("5:00"));
+        assertEquals(0, AlarmScheduler.parseTime("00:00")[0]);
         assertEquals(23, AlarmScheduler.parseTime("23:59")[0]);
     }
 
@@ -169,7 +186,7 @@ public class AlarmSchedulerTest {
         assertEquals("0,1,2,3,4,5,6", AlarmStore.joinDays(null));
         assertEquals("1,3,5", AlarmStore.joinDays(new int[] { 1, 3, 5 }));
         assertEquals(3, AlarmStore.parseDays("1,3,5").length);
-        assertEquals(7, AlarmStore.parseDays("").length);
+        assertEquals(0, AlarmStore.parseDays("").length);
         assertEquals(7, AlarmStore.parseDays(null).length);
         assertEquals(2, AlarmStore.parseDays("1,9,3").length); // 9 يوم غير صالح
     }

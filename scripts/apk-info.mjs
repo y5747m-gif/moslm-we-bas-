@@ -19,12 +19,14 @@ const sizeLabel =
 const [major = 5, minor = 1, patch = 0] = String(pkg.version || "5.1.0")
   .split(".")
   .map((n) => parseInt(n, 10) || 0);
-const runNumber = parseInt(process.env.GITHUB_RUN_NUMBER || "0", 10) || 0;
-const versionCode = runNumber > 0 ? runNumber : major * 10000 + minor * 100 + patch;
+const fallbackVersionCode = major * 10000 + minor * 1000 + patch * 100;
+// في CI تأتي القيم من manifest داخل APK بعد aapt dump badging؛ ليست تخميناً.
+const versionCode = parseInt(process.env.APK_VERSION_CODE || "", 10) || fallbackVersionCode;
+const versionName = process.env.APK_VERSION_NAME || String(pkg.version || "5.1.0");
 
 const info = {
   available: true,
-  version: String(pkg.version || "5.1.0"),
+  version: versionName,
   versionCode,
   fileName: "hatsally.apk",
   sizeBytes,

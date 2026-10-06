@@ -8,7 +8,6 @@ import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ServiceInfo;
-import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
@@ -52,7 +51,7 @@ public class AlarmGuardService extends Service {
     /** فحص دوري: إعادة نشر الإشعار المثبت + التحقق من الجدولة */
     private static final long TICK_MS = 20000L;
     /** حد أمان: لا يظل الهاتف يصرخ للأبد لو تعذّر التحقق (ساعة كاملة) */
-    private static final long MAX_RING_MS = 60 * 60 * 1000L;
+    private static final long MAX_RING_MS = AlarmConstants.MAX_RING_MINUTES * 60L * 1000L;
     private static final int REQ_DELETE = 4103;
 
     private static volatile boolean instanceRunning = false;
@@ -113,7 +112,13 @@ public class AlarmGuardService extends Service {
         } else if (ACTION_RING_FORCE.equals(action)) {
             beginRinging(true);
         } else if (ACTION_STOP_RING.equals(action)) {
-            stopRinging();
+            stopRinging(true);
+        } else if (AlarmStore.isRinging(this) && AlarmStore.isArmed(this)) {
+            // START_STICKY قد يعيد الخدمة بـ intent فارغ بعد قتل العملية.
+            // حالة الرنين محفوظة أصلياً، لذلك يجب استئناف الصوت والاهتزاز
+            // بدلاً من الاكتفاء بإشعار صامت والموعد التالي.
+            Log.w(TAG, "recovering persisted ringing state after service restart");
+            beginRinging(false);
         }
 
         // GUARD / REPOST / START_STICKY → تحديث الإشعار المثبت وإعادته إن حُذف
@@ -182,25 +187,31 @@ public class AlarmGuardService extends Service {
         if (ringer.isRunning()) {
             // أمان: لو أوقفت الواجهة الرنين من مكان آخر
             if (!AlarmStore.isRinging(this)) {
-                stopRinging();
+                stopRinging(true);
             } else {
                 long started = AlarmStore.ringStartedAt(this);
                 if (started > 0L && now - started > MAX_RING_MS) {
-                    Log.w(TAG, "ring safety cap reached - stopping sound");
-                    stopRinging();
+                    Log.w(TAG, "ring safety cap reached - sound stops, verification remains required");
+                    stopRinging(false);
                 }
             }
         } else {
-            // المنبه مسلح ولا يرن: تأكد أن الموعد ما زال مجدولاً في النظام
-            long scheduledAt = AlarmStore.scheduledAt(this);
-            if (scheduledAt <= 0L || scheduledAt <= now) {
-                long due = AlarmScheduler.dueRingMillis(cfg, now);
-                if (due > 0L) {
-                    // فات الموعد ضمن المهلة ولم نرنّ → ارنّ الآن (لحاق)
-                    Log.i(TAG, "catch-up ring (alarm was due " + (now - due) / 60000L + " min ago)");
-                    beginRinging(false);
-                } else {
-                    AlarmScheduler.scheduleNext(this);
+            if (AlarmStore.isRinging(this) && cfg.armed) {
+                // الخدمة/العملية أُعيد إنشاؤها أثناء الرنين؛ لا تسمح بتحول
+                // الحالة المحفوظة إلى إشعار صامت حتى الموعد التالي.
+                beginRinging(false);
+            } else {
+                // المنبه مسلح ولا يرن: تأكد أن الموعد ما زال مجدولاً في النظام
+                long scheduledAt = AlarmStore.scheduledAt(this);
+                if (scheduledAt <= 0L || scheduledAt <= now) {
+                    long due = AlarmScheduler.dueRingMillis(cfg, now);
+                    if (due > 0L) {
+                        // فات الموعد ضمن المهلة ولم نرنّ → ارنّ الآن (لحاق)
+                        Log.i(TAG, "catch-up ring (alarm was due " + (now - due) / 60000L + " min ago)");
+                        beginRinging(false);
+                    } else {
+                        AlarmScheduler.scheduleNext(this);
+                    }
                 }
             }
         }
@@ -226,25 +237,38 @@ public class AlarmGuardService extends Service {
             stopEverything();
             return;
         }
-        long now = System.currentTimeMillis();
-        boolean alreadyRinging = AlarmStore.isRinging(this);
-        AlarmStore.setRinging(this, true);
-        if (cfg.armed && !alreadyRinging) {
-            AlarmStore.markFiredNow(this); // مرة واحدة فقط في اليوم
+        boolean persistedRinging = AlarmStore.isRinging(this);
+        String today = AlarmStore.dayKey(System.currentTimeMillis());
+        if (!force && !persistedRinging && today.equals(cfg.lastFiredKey)) {
+            Log.i(TAG, "duplicate ring request ignored for " + today);
+            AlarmScheduler.scheduleNext(this);
+            return;
         }
-        ringer.start(cfg);
+
+        // الترتيب حاسم: ابدأ الصوت أولاً، ثم ثبّت ringing/lastFired.
+        // وبذلك لا يضيع موعد اليوم إن فشل بدء الخدمة أو مصدر الصوت.
+        boolean started = ringer.start(cfg);
+        if (!started) {
+            AlarmStore.setRinging(this, false);
+            Log.e(TAG, "ringer failed to start; day was NOT marked fired");
+            postGuardNotification(cfg, System.currentTimeMillis());
+            return;
+        }
+        AlarmStore.setRinging(this, true);
+        AlarmStore.setVerificationRequired(this, true);
+        if (cfg.armed && !persistedRinging) AlarmStore.markFiredNow(this);
+
+        long now = System.currentTimeMillis();
         postRingNotification(cfg, now);
         postGuardNotification(cfg, now);
-        if (cfg.armed) {
-            // جدولة الموعد القادم فوراً (حتى لو استمر الرنين طويلاً)
-            AlarmScheduler.scheduleNext(this);
-        }
-        // افتح الواجهة فوق شاشة القفل (وإلا فإشعار ملء الشاشة يتكفل بذلك)
-        openAppOverLockscreen();
+        if (cfg.armed) AlarmScheduler.scheduleNext(this);
+        // لا startActivity من الخلفية: FullScreenIntent + action «فتح التحقق»
+        // هما المسار الرسمي والموثوق على Android الحديث.
     }
 
-    private void stopRinging() {
+    private void stopRinging(boolean verificationCompleted) {
         AlarmStore.setRinging(this, false);
+        if (verificationCompleted) AlarmStore.setVerificationRequired(this, false);
         if (ringer != null) ringer.stop();
         if (nm != null) {
             try {
@@ -262,21 +286,6 @@ public class AlarmGuardService extends Service {
         postGuardNotification(cfg, System.currentTimeMillis());
     }
 
-    /** فتح الواجهة فوق شاشة القفل (الطريقة الرسمية هي إشعار ملء الشاشة) */
-    private void openAppOverLockscreen() {
-        try {
-            Intent i = new Intent(this, MainActivity.class);
-            i.setAction(Intent.ACTION_VIEW);
-            i.setData(Uri.parse("hatsally://alarm?fire=1"));
-            i.setPackage(getPackageName());
-            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            i.putExtra("hatsally_fire", true);
-            startActivity(i);
-        } catch (Throwable t) {
-            Log.w(TAG, "direct activity start blocked (" + t.getMessage() + ") - full screen intent will handle it");
-        }
-    }
-
     // ------------------------------------------------------------------
     // الخدمة الأمامية + الإشعار المثبت
     // ------------------------------------------------------------------
@@ -286,22 +295,23 @@ public class AlarmGuardService extends Service {
         Notification n = buildGuardNotification(AlarmStore.load(this), System.currentTimeMillis());
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                try {
-                    startForeground(
-                        GUARD_NOTIFICATION_ID,
-                        n,
-                        ServiceInfo.FOREGROUND_SERVICE_TYPE_SYSTEM_EXEMPTED
-                    );
-                    foregroundStarted = true;
-                    return;
-                } catch (Throwable t) {
-                    Log.w(TAG, "systemExempted FGS failed: " + t.getMessage());
-                }
+                // specialUse هو النوع المعلن في manifest ولا يتطلب امتلاك دور
+                // نظامي خاص. systemExempted كان يفشل على بعض أجهزة Android 14+
+                // عندما لا يكون إذن المنبه الدقيق ممنوحاً، فتُقتل الخدمة كلها.
+                startForeground(
+                    GUARD_NOTIFICATION_ID,
+                    n,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+                );
+            } else {
+                startForeground(GUARD_NOTIFICATION_ID, n);
             }
-            startForeground(GUARD_NOTIFICATION_ID, n);
             foregroundStarted = true;
         } catch (Throwable t) {
-            Log.e(TAG, "startForeground failed: " + t.getMessage());
+            Log.e(TAG, "startForeground failed: " + t.getMessage(), t);
+            // لا ندّعي أن الحارس يعمل. أوقف الخدمة كي تكشف الواجهة الفشل
+            // بدلاً من إبقائها في حالة نصف حية بلا foreground.
+            stopSelf();
         }
     }
 
@@ -396,7 +406,7 @@ public class AlarmGuardService extends Service {
             .setCategory(Notification.CATEGORY_SERVICE)
             .setVisibility(Notification.VISIBILITY_PUBLIC)
             .setShowWhen(false)
-            .setContentIntent(AlarmScheduler.openAppPendingIntent(this))
+            .setContentIntent(AlarmScheduler.openStatusPendingIntent(this))
             .setDeleteIntent(deletePendingIntent());
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             b.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE);

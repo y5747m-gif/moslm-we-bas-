@@ -1,0 +1,6 @@
+{
+  "engineVersion": 3,
+  "defaultGraceMinutes": 45,
+  "maxRingMinutes": 60,
+  "allowedDurations": [7, 14, 30]
+}

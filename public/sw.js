@@ -1,7 +1,8 @@
-// HatSally - هتصلي يعني هتصلي - Service Worker v9 (native alarm engine + guard notification)
-// Features: Auto update, persistent alarm, real faucet/mat verification, offline face models
-const CACHE_NAME = "hatsally-v9-native-engine";
-const APP_VERSION = "5.2.0-native-alarm-engine";
+// HatSally - هتصلي يعني هتصلي - Service Worker v10 (reliable native alarm engine)
+// Features: Auto update, browser-only best-effort reminders, offline face models
+importScripts("/alarm-engine-config.js");
+const CACHE_NAME = "hatsally-v11-native-engine-v3";
+const APP_VERSION = "5.3.1-native-engine-v3";
 const PRECACHE_URLS = [
   "/",
   "/icons/icon-192.png",
@@ -9,6 +10,7 @@ const PRECACHE_URLS = [
   "/icons/icon-512.png",
   "/icons/icon-512x512.png",
   "/manifest.webmanifest",
+  "/alarm-engine-config.js",
   // نماذج كشف الوجه - تعمل بدون إنترنت بعد أول تحميل
   "/models/tiny_face_detector_model-weights_manifest.json",
   "/models/tiny_face_detector_model.bin",
@@ -159,7 +161,7 @@ function showPersistentAlarm(name, stage, lang) {
 // في الأندرويد) - القاعدة: الرنين يحدث عندما يحين الموعد أو بعده بمهلة،
 // مرة واحدة فقط في اليوم، وليس عند الثانية صفر.
 // ==================================================================
-const RING_GRACE_MINUTES = 45;
+const RING_GRACE_MINUTES = self.HATSALLY_ALARM_CONFIG.defaultGraceMinutes;
 
 function dayKey(d) {
   const y = d.getFullYear();
