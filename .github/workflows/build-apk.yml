@@ -108,9 +108,12 @@ jobs:
       - name: Build web export + sync Capacitor
         run: npm run build:apk
 
-      - name: Bump Android versionCode from run number
+      - name: Bump Android versionCode monotonically
         run: |
-          sed -i "s/versionCode .*/versionCode ${{ github.run_number }}/" android/app/build.gradle
+          # قاعدة الإصدار تمنع Android من رفض التحديث كـ downgrade حتى لو
+          # كان APK قد بُني سابقاً برقم إصدار يدوي كبير.
+          VERSION_CODE=$((53000 + ${{ github.run_number }}))
+          sed -i "s/versionCode .*/versionCode $VERSION_CODE/" android/app/build.gradle
           grep -n "versionCode\|versionName" android/app/build.gradle
 
       - name: Assemble debug APK

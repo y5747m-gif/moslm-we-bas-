@@ -1,7 +1,7 @@
-// HatSally - هتصلي يعني هتصلي - Service Worker v9 (native alarm engine + guard notification)
+// HatSally - هتصلي يعني هتصلي - Service Worker v10 (reliable native alarm engine)
 // Features: Auto update, persistent alarm, real faucet/mat verification, offline face models
-const CACHE_NAME = "hatsally-v9-native-engine";
-const APP_VERSION = "5.2.0-native-alarm-engine";
+const CACHE_NAME = "hatsally-v10-reliable-native-alarm";
+const APP_VERSION = "5.3.0-reliable-native-alarm";
 const PRECACHE_URLS = [
   "/",
   "/icons/icon-192.png",

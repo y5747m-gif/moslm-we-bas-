@@ -221,7 +221,7 @@ public class AlarmPowerPlugin extends Plugin {
             PendingIntent pi = AlarmScheduler.testPendingIntent(ctx);
             try {
                 am.setAlarmClock(
-                    new AlarmManager.AlarmClockInfo(at, AlarmScheduler.openAppPendingIntent(ctx)),
+                    new AlarmManager.AlarmClockInfo(at, AlarmScheduler.openStatusPendingIntent(ctx)),
                     pi
                 );
             } catch (Throwable t) {

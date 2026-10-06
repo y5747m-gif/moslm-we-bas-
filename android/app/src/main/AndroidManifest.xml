@@ -53,7 +53,7 @@
             android:enabled="true"
             android:exported="false"
             android:stopWithTask="false"
-            android:foregroundServiceType="systemExempted|specialUse">
+            android:foregroundServiceType="specialUse">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="alarm_clock_ring_and_persistent_alarm_status" />
@@ -103,6 +103,4 @@
     <!-- الحارس: خدمة أمامية تبقي المنبه يعمل بعد إغلاق التطبيق + إشعار مثبت -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
-    <!-- نوع الخدمة المخصص لتطبيقات المنبهات (أندرويد 14+) - لا شروط تشغيل إضافية -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SYSTEM_EXEMPTED" />
 </manifest>

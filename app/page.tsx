@@ -858,7 +858,7 @@ export default function Page() {
   const [showUpdateBanner, setShowUpdateBanner] = useState(false);
   const [updateInfo, setUpdateInfo] = useState<{ version: string; message: string } | null>(null);
   const [justUpdated, setJustUpdated] = useState(false);
-  const [appVersion] = useState("5.2.0-native-alarm-engine");
+  const [appVersion] = useState("5.3.0-reliable-native-alarm");
 
   // Native APK + real APK download states
   const [isNativeApp, setIsNativeApp] = useState(false);
@@ -1684,14 +1684,14 @@ export default function Page() {
    * المنبه يعمل حتى بعد إغلاق التطبيق أو إعادة تشغيل الهاتف.
    */
   const armNativeEngine = useCallback(
-    async (opts?: { keepLastFired?: boolean }): Promise<boolean> => {
+    async (opts?: { keepLastFired?: boolean; startDate?: string | null }): Promise<boolean> => {
       if (!isNativeApp) return false;
       const ok = await scheduleNativeAlarm({
         time: alarmTime,
         name: userName,
         days: selectedDays,
         lang: language,
-        startDate: alarmStartDate,
+        startDate: opts && "startDate" in opts ? opts.startDate : alarmStartDate,
         durationDays,
         keepLastFired: opts?.keepLastFired,
       });
@@ -1921,13 +1921,23 @@ export default function Page() {
     // داخل تطبيق APK: تسليح المحرك الأصلي (منبه دقيق + حارس + إشعار مثبت)
     // يعمل حتى لو أُغلق التطبيق تماماً أو أُعيد تشغيل الهاتف
     if (isNativeApp) {
-      await armNativeEngine();
-      void notifyNative(
-        language === "ar" ? "✅ تم ضبط منبه هتصلي" : "✅ HatSally alarm set",
-        language === "ar"
-          ? `سيوقظك المنبه الساعة ${alarmTime} يا ${userName} - الحارس يعمل والإشعار مثبت في الشريط 🔒`
-          : `Alarm will wake you at ${alarmTime}, ${userName} - guard is on with a pinned notification 🔒`
-      );
+      const armedInAndroid = await armNativeEngine({ startDate });
+      if (armedInAndroid) {
+        void notifyNative(
+          language === "ar" ? "✅ تم ضبط منبه هتصلي" : "✅ HatSally alarm set",
+          language === "ar"
+            ? `سيوقظك المنبه الساعة ${alarmTime} يا ${userName} - الحارس يعمل والإشعار مثبت في الشريط 🔒`
+            : `Alarm will wake you at ${alarmTime}, ${userName} - guard is on with a pinned notification 🔒`
+        );
+      } else {
+        // لا نعرض نجاحاً كاذباً: افتح الأذونات واطلب من المستخدم إصلاحها.
+        setShowPermWizard(true);
+        alert(
+          language === "ar"
+            ? "تعذّر تسجيل الموعد داخل نظام أندرويد. امنح أذونات الإشعارات والمنبه الدقيق والبطارية، ثم اضغط ضبط المنبه مرة أخرى."
+            : "Android could not register this alarm. Grant notifications, exact alarm, and battery permissions, then set the alarm again."
+        );
+      }
     }
     // الأذونات الناقصة: افتح المعالج بعد التسليح (المنبه صار مسلحاً وينقصه بعض القوة فقط)
     if (!crit.ok) setShowPermWizard(true);

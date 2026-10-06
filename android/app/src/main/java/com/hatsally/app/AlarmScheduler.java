@@ -35,7 +35,8 @@ public final class AlarmScheduler {
     public static final String ACTION_GUARD = "com.hatsally.app.action.GUARD";
 
     private static final int REQ_FIRE = 4101;
-    private static final int REQ_OPEN = 4102;
+    private static final int REQ_OPEN_RING = 4102;
+    private static final int REQ_OPEN_STATUS = 4105;
     private static final int REQ_TEST = 4104;
     private static final long DAY_MS = 86400000L;
 
@@ -187,19 +188,38 @@ public final class AlarmScheduler {
         return PendingIntent.getBroadcast(ctx, REQ_TEST, i, flags);
     }
 
-    /** PendingIntent الذي يُظهر للمستخدم "منبه قادم" ويفتح التطبيق عند الضغط */
-    public static PendingIntent openAppPendingIntent(Context ctx) {
+    /**
+     * فتح واجهة الرنين. لا يُستخدم إلا بعد أن يبدأ الرنين فعلاً
+     * (إشعار ملء الشاشة/إشعار الرنين)، حتى لا يعتبر الضغط على إشعار
+     * الحارس أو أيقونة «المنبه القادم» رنيناً بالخطأ.
+     */
+    public static PendingIntent openRingingPendingIntent(Context ctx) {
         Intent i = new Intent(ctx, MainActivity.class);
         i.setAction(Intent.ACTION_VIEW);
         i.setData(Uri.parse("hatsally://alarm?fire=1"));
         i.setPackage(ctx.getPackageName());
-        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         i.putExtra("hatsally_fire", true);
         int flags = PendingIntent.FLAG_UPDATE_CURRENT;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            flags |= PendingIntent.FLAG_IMMUTABLE;
-        }
-        return PendingIntent.getActivity(ctx, REQ_OPEN, i, flags);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) flags |= PendingIntent.FLAG_IMMUTABLE;
+        return PendingIntent.getActivity(ctx, REQ_OPEN_RING, i, flags);
+    }
+
+    /** فتح التطبيق لعرض حالة المنبه فقط، من دون إطلاق حدث رنين كاذب. */
+    public static PendingIntent openStatusPendingIntent(Context ctx) {
+        Intent i = new Intent(ctx, MainActivity.class);
+        i.setAction(Intent.ACTION_VIEW);
+        i.setData(Uri.parse("hatsally://alarm?status=1"));
+        i.setPackage(ctx.getPackageName());
+        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) flags |= PendingIntent.FLAG_IMMUTABLE;
+        return PendingIntent.getActivity(ctx, REQ_OPEN_STATUS, i, flags);
+    }
+
+    /** اسم قديم أبقيناه للتوافق الداخلي: المقصود به دائماً واجهة الرنين. */
+    public static PendingIntent openAppPendingIntent(Context ctx) {
+        return openRingingPendingIntent(ctx);
     }
 
     /**
@@ -236,7 +256,7 @@ public final class AlarmScheduler {
         if (due <= 0L) {
             // setAlarmClock = أدق وأقوى واجهة: توقظ من Doze وتسمح ببدء خدمة أمامية
             try {
-                am.setAlarmClock(new AlarmManager.AlarmClockInfo(target, openAppPendingIntent(ctx)), pi);
+                am.setAlarmClock(new AlarmManager.AlarmClockInfo(target, openStatusPendingIntent(ctx)), pi);
                 ok = true;
             } catch (SecurityException e) {
                 Log.w(TAG, "setAlarmClock denied: " + e.getMessage());

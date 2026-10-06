@@ -218,12 +218,17 @@ export async function scheduleNativeAlarm(opts: ScheduleAlarmOptions): Promise<b
         "exact:",
         state?.exactAlarms
       );
-      return !!state?.armed;
+      // لا يكفي أن تكون الإعدادات محفوظة: النجاح الحقيقي يعني أن Android
+      // يحمل موعداً مستقبلياً (أو أن الرنين بدأ بالفعل). سابقاً كانت الواجهة
+      // تعرض «تم الضبط» حتى لو فشلت كل استدعاءات AlarmManager.
+      return !!state?.armed && (!!state?.alarmPendingInSystem || !!state?.ringing);
     } catch (e) {
-      console.warn("[Native] engine setAlarm failed - falling back:", e);
+      console.warn("[Native] engine setAlarm failed:", e);
+      return false;
     }
   }
 
+  // هذا المسار للنسخ القديمة فقط التي لا تحتوي محرك AlarmPower.
   return scheduleViaLocalNotifications(opts);
 }
 
