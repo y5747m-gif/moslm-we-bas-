@@ -36,7 +36,8 @@ public final class AlarmScheduler {
 
     private static final int REQ_FIRE = 4101;
     private static final int REQ_OPEN = 4102;
-    private static final int REQ_TEST = 4104;
+    /** رمز مستقل لموعد الاختبار حتى لا يُلغي الموعد الحقيقي (FLAG_UPDATE_CURRENT) */
+    public static final int REQ_TEST = 4104;
     private static final long DAY_MS = 86400000L;
 
     private AlarmScheduler() {}
@@ -232,12 +233,23 @@ public final class AlarmScheduler {
         if (am == null) return -1L;
         PendingIntent pi = firePendingIntent(ctx);
 
+        // الخلل القديم: موعد الاختبار كان يُلغى بالخطأ ثم يعود ليرنّ بعد
+        // إعادة الجدولة في وقت عشوائي. الآن: أي إعادة جدولة حقيقية تنهي
+        // موعد الاختبار العالق بشكل نظيف.
+        try {
+            am.cancel(testPendingIntent(ctx));
+        } catch (Throwable ignored) {
+            // لا شيء
+        }
+
         boolean ok = false;
+        boolean exact = false;
         if (due <= 0L) {
             // setAlarmClock = أدق وأقوى واجهة: توقظ من Doze وتسمح ببدء خدمة أمامية
             try {
                 am.setAlarmClock(new AlarmManager.AlarmClockInfo(target, openAppPendingIntent(ctx)), pi);
                 ok = true;
+                exact = true;
             } catch (SecurityException e) {
                 Log.w(TAG, "setAlarmClock denied: " + e.getMessage());
             } catch (Throwable t) {
@@ -247,6 +259,7 @@ public final class AlarmScheduler {
                 try {
                     am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, target, pi);
                     ok = true;
+                    exact = true;
                 } catch (Throwable t) {
                     Log.w(TAG, "setExactAndAllowWhileIdle failed: " + t.getMessage());
                 }
@@ -271,11 +284,28 @@ public final class AlarmScheduler {
         }
 
         if (ok) {
-            AlarmStore.setScheduledAt(ctx, target);
-            Log.i(TAG, "alarm scheduled at " + target + (due > 0L ? " (catch-up)" : ""));
+            // اللحاق يُسلَّم للحارس (ACTION_RING) ولا يحتاج موعداً في النظام؛
+            // سجل الموعد يظل مطابقاً لما هو مسجل فعلاً في AlarmManager حتى
+            // لا يحسب الحارس الجدولة «ضائعة» كل 20 ثانية.
+            if (due <= 0L) AlarmStore.setScheduledAt(ctx, target);
+            // لو فقد النظام إذن المنبه الدقيق: أخبر الواجهة لتطلبه من المستخدم
+            if (!exact && canScheduleExact(ctx)) AlarmStore.markNeedsExactPerm(ctx);
+            Log.i(TAG, "alarm scheduled at " + target + (due > 0L ? " (catch-up via guard)" : ""));
             return target;
         }
         return -1L;
+    }
+
+    /** هل يوجد موعد اختبار عالق لم يستهلك بعد؟ (للعرض في حالة المحرك) */
+    public static boolean testPending(Context ctx) {
+        try {
+            return PendingIntent.getBroadcast(
+                ctx, REQ_TEST, new Intent(ctx, AlarmReceiver.class).setPackage(ctx.getPackageName()),
+                PendingIntent.FLAG_NO_CREATE | (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? PendingIntent.FLAG_IMMUTABLE : 0)
+            ) != null;
+        } catch (Throwable t) {
+            return false;
+        }
     }
 
     /** إلغاء الموعد المجدول في النظام (الحقيقي + الاختباري) */

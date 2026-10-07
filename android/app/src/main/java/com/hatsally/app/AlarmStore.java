@@ -40,6 +40,10 @@ public final class AlarmStore {
     private static final String K_RINGING = "ringing";
     private static final String K_RING_STARTED = "ringStartedAt";
     private static final String K_SCHEDULED_AT = "scheduledAt";
+    /** علامة «فقدنا إذن المنبه الدقيق» - تقرأها الواجهة وتطلب الإذن */
+    private static final String K_NEEDS_EXACT = "needsExactPerm";
+    /** موعد اختبار AlarmManager العالق (لم يستهلك بعد) */
+    private static final String K_TEST_AT = "testAt";
 
     private AlarmStore() {}
 
@@ -151,6 +155,28 @@ public final class AlarmStore {
 
     public static long scheduledAt(Context ctx) {
         return prefs(ctx).getLong(K_SCHEDULED_AT, 0L);
+    }
+
+    /** علامة طلب إذن المنبه الدقيق من المستخدم (تُمسح عند نجاح جدولة دقيقة) */
+    public static void markNeedsExactPerm(Context ctx) {
+        prefs(ctx).edit().putBoolean(K_NEEDS_EXACT, true).apply();
+    }
+
+    public static boolean needsExactPerm(Context ctx) {
+        return prefs(ctx).getBoolean(K_NEEDS_EXACT, false);
+    }
+
+    public static void clearNeedsExactPerm(Context ctx) {
+        prefs(ctx).edit().putBoolean(K_NEEDS_EXACT, false).apply();
+    }
+
+    /** موعد الاختبار العالق (0 = لا يوجد) */
+    public static void setTestAt(Context ctx, long millis) {
+        prefs(ctx).edit().putLong(K_TEST_AT, millis).apply();
+    }
+
+    public static long testAt(Context ctx) {
+        return prefs(ctx).getLong(K_TEST_AT, 0L);
     }
 
     // ------------------------------------------------------------------
