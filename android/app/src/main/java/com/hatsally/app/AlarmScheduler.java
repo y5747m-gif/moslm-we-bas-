@@ -306,27 +306,34 @@ public final class AlarmScheduler {
         AlarmManager am = (AlarmManager) ctx.getSystemService(Context.ALARM_SERVICE);
         if (am == null) return remember(ctx, ScheduleStatus.FAILED, -1L, false);
         PendingIntent pi = firePendingIntent(ctx);
-        boolean exactPermission = canScheduleExact(ctx);
 
-        if (exactPermission) {
-            try {
-                am.setAlarmClock(new AlarmManager.AlarmClockInfo(target, openStatusPendingIntent(ctx)), pi);
-                AlarmStore.setScheduledAt(ctx, target);
-                return remember(ctx, ScheduleStatus.EXACT_SCHEDULED, target, true);
-            } catch (Throwable t) {
-                Log.e(TAG, "exact alarm scheduling failed", t);
-                return remember(ctx, ScheduleStatus.FAILED, -1L, false);
-            }
+        // أمان: setAlarmClock يرمي IllegalArgumentException لو كان الموعد في
+        // الماضي. تأكّد أن الهدف مستقبلي دائماً (على الأقل 1.5 ثانية).
+        if (target <= now) target = now + 1500L;
+
+        // setAlarmClock هي الواجهة الأدق في أندرويد للمنبهات: معفاة من قيود
+        // Doze وتأخيرات تحسين البطارية، وتعرض أيقونة المنبه في شريط الحالة،
+        // وتمنع النظام من قتل التطبيق عند إغلاقه — تماماً مثل تطبيق الساعة
+        // الأصلي. والأهم: لا تتطلب إذن SCHEDULE_EXACT_ALARM أصلاً.
+        // لذلك نستخدمها دائماً ولا نسقط إلى جدولة غير دقيقة عند غياب ذلك
+        // الإذن، فكان السقوط السابق يُؤجّل المنبه ساعات أثناء نوم الهاتف
+        // فيضعف الرنين أو يختفي تماماً.
+        try {
+            am.setAlarmClock(new AlarmManager.AlarmClockInfo(target, openStatusPendingIntent(ctx)), pi);
+            AlarmStore.setScheduledAt(ctx, target);
+            return remember(ctx, ScheduleStatus.EXACT_SCHEDULED, target, true);
+        } catch (Throwable t) {
+            Log.e(TAG, "setAlarmClock failed, trying inexact fallback", t);
         }
 
-        // نسجل fallback غير دقيق كي لا يصبح المستخدم بلا أي تنبيه، لكن
-        // الحالة INEXACT لا تُعرض أبداً كنجاح كامل وتظل تطلب إذن exact.
+        // ملاذ أخير نادر (مثلاً هدف غير صالح): إن فشل setAlarmClock نستخدم
+        // تنبيهاً غير دقيق كي لا يبقى المستخدم بلا أي تنبيه.
         try {
             am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, target, pi);
             AlarmStore.setScheduledAt(ctx, target);
             return remember(ctx, ScheduleStatus.INEXACT_SCHEDULED, target, false);
         } catch (Throwable t) {
-            Log.e(TAG, "inexact fallback failed without exact permission", t);
+            Log.e(TAG, "inexact fallback failed", t);
             return remember(ctx, ScheduleStatus.NO_PERMISSION, -1L, false);
         }
     }

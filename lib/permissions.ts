@@ -30,7 +30,7 @@ export interface PermStatus {
 export const PERMISSIONS: Array<{ id: PermId; nativeOnly: boolean; critical: boolean }> = [
   { id: "notifications", nativeOnly: false, critical: true },
   { id: "camera", nativeOnly: false, critical: true },
-  { id: "exactAlarm", nativeOnly: true, critical: true },
+  { id: "exactAlarm", nativeOnly: true, critical: false },
   { id: "battery", nativeOnly: true, critical: true },
   { id: "fullScreen", nativeOnly: true, critical: false },
   { id: "dnd", nativeOnly: true, critical: false },

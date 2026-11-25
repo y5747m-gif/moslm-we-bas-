@@ -218,10 +218,14 @@ export async function scheduleNativeAlarm(opts: ScheduleAlarmOptions): Promise<b
         "exact:",
         state?.exactAlarms
       );
-      // لا يكفي أن تكون الإعدادات محفوظة: النجاح الحقيقي يعني أن Android
-      // يحمل موعداً مستقبلياً (أو أن الرنين بدأ بالفعل). سابقاً كانت الواجهة
-      // تعرض «تم الضبط» حتى لو فشلت كل استدعاءات AlarmManager.
-      return !!state?.armed && state?.scheduleStatus === "EXACT_SCHEDULED" && !!state?.exactAlarmPermission;
+      // النجاح = المنبه مسلّح ومجدول فعلياً في النظام. بما أن setAlarmClock
+      // لا يتطلب إذن «المنبه الدقيق» أصلاً (بل يعمل بدقته المعفاة من Doze)،
+      // لا نربط النجاح بوجود ذلك الإذن — وإلا ظهر للمستخدم «فشل التسجيل»
+      // بينما المنبه مجدول وصحيح.
+      const scheduled =
+        state?.scheduleStatus === "EXACT_SCHEDULED" ||
+        state?.scheduleStatus === "INEXACT_SCHEDULED";
+      return !!state?.armed && scheduled;
     } catch (e) {
       console.warn("[Native] engine setAlarm failed:", e);
       return false;

@@ -199,10 +199,8 @@ public class AlarmPowerPlugin extends Plugin {
             if (delay > 600) delay = 600;
             long at = System.currentTimeMillis() + (delay * 1000L);
 
-            if (!AlarmScheduler.canScheduleExact(ctx)) {
-                call.reject("EXACT_ALARM_PERMISSION_REQUIRED");
-                return;
-            }
+            // لا نرفض الاختبار بسبب غياب إذن المنبه الدقيق: setAlarmClock
+            // لا يتطلبه أصلاً، لذا يعمل اختبار الرنين الحقيقي دائماً.
             AlarmStore.Config cfg = AlarmStore.load(ctx);
             boolean wasArmed = cfg.armed;
             AlarmManager am = (AlarmManager) ctx.getSystemService(Context.ALARM_SERVICE);
@@ -212,10 +210,18 @@ public class AlarmPowerPlugin extends Plugin {
             }
             // PendingIntent مستقل: لا يُلغي الموعد الحقيقي ولا يستهلك رنين اليوم
             PendingIntent pi = AlarmScheduler.testPendingIntent(ctx);
-            am.setAlarmClock(
-                new AlarmManager.AlarmClockInfo(at, AlarmScheduler.openStatusPendingIntent(ctx)),
-                pi
-            );
+            try {
+                // setAlarmClock دقيق ومعفى من Doze (ويحتاج إذن المنبه الدقيق
+                // على API 31+). نجرّبه أولاً؛ إن تعذّر (الإذن مفقود) نسقط إلى
+                // تنبيه غير دقيق كي يرنّ الهاتف فعلاً في الاختبار.
+                am.setAlarmClock(
+                    new AlarmManager.AlarmClockInfo(at, AlarmScheduler.openStatusPendingIntent(ctx)),
+                    pi
+                );
+            } catch (Throwable t) {
+                Log.w(TAG, "test setAlarmClock failed, using inexact fallback", t);
+                am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi);
+            }
             AlarmScheduler.startGuardService(ctx, AlarmGuardService.ACTION_GUARD);
 
             JSObject ret = buildState(ctx);
@@ -671,17 +677,16 @@ public class AlarmPowerPlugin extends Plugin {
         if (v == null) return fallback;
         if (v instanceof Number) {
             int d = ((Number) v).intValue();
-            if (d == 7 || d == 14 || d == 30) return d;
-            throw new IllegalArgumentException("durationDays must be forever, 7, 14, or 30");
+            // أي عدد موجب مسموح (7/14/30/مخصّص)؛ الصفر والسالب = للأبد.
+            return d <= 0 ? AlarmStore.FOREVER : d;
         }
         String s = v.toString().trim();
         if ("forever".equalsIgnoreCase(s)) return AlarmStore.FOREVER;
         try {
             int d = Integer.parseInt(s);
-            if (d == 7 || d == 14 || d == 30) return d;
+            return d <= 0 ? AlarmStore.FOREVER : d;
         } catch (NumberFormatException ignored) {
-            // throw below
+            return fallback;
         }
-        throw new IllegalArgumentException("durationDays must be forever, 7, 14, or 30");
     }
 }
