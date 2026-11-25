@@ -43,6 +43,7 @@ import { verifyCapture, warmUpVerification, type VerifyTask } from "../lib/verif
 import { decideAlarm, computeNextRing, getTodayKey } from "../lib/schedule";
 import { checkCritical, enforceRinging, relaxAfterRinging, openNativeAppOr } from "../lib/permissions";
 import PermissionsPanel from "./components/PermissionsPanel";
+import DhikrPanel from "./components/DhikrPanel";
 import QRCode from "react-qr-code";
 import type { VisionCheck } from "../lib/vision";
 import {
@@ -825,6 +826,7 @@ export default function Page() {
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [showPermWizard, setShowPermWizard] = useState(false);
+  const [showDhikr, setShowDhikr] = useState(false);
   const [permChecking, setPermChecking] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [aiAnalyzing, setAiAnalyzing] = useState(false);
@@ -2646,6 +2648,14 @@ export default function Page() {
                 <Play className="w-5 h-5" />
                 {t.tryNow}
               </button>
+
+              <button
+                onClick={() => setShowDhikr(true)}
+                className={`flex items-center justify-center gap-2 px-6 py-4 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 text-black font-bold text-[15px] shadow-[0_0_30px_rgba(245,158,11,0.25)] hover:shadow-[0_0_40px_rgba(245,158,11,0.45)] transition-all hover:scale-[1.02] active:scale-[0.98]`}
+              >
+                <Sparkles className="w-5 h-5" />
+                {language === "ar" ? "أذكار الصباح والمساء" : "Adhkar"}
+              </button>
             </div>
 
             <div className="mt-10 flex items-center gap-6">
@@ -3401,6 +3411,27 @@ export default function Page() {
                       </div>
                       <div className="flex-1">
                         <div className="glass rounded-[1.2rem] p-3 border border-white/10">
+                          {(() => {
+                            const gid = verificationTasks[currentVerificationIndex]?.id;
+                            const gsrc = gid === "water" ? "/verify/water.png" : gid === "prayer" ? "/verify/prayer.png" : gid === "face" ? "/verify/face.png" : null;
+                            const glabel = gid === "water" ? (language === "ar" ? "مثال: صنبور المياه" : "Example: water tap") : gid === "prayer" ? (language === "ar" ? "مثال: المصلاة" : "Example: prayer mat") : gid === "face" ? (language === "ar" ? "مثال: وجه بعينين مفتوحتين" : "Example: face, eyes open") : "";
+                            if (!gsrc) return null;
+                            return (
+                              <div className="mb-3 flex items-center gap-3">
+                                <div className={`w-16 h-16 rounded-2xl overflow-hidden border border-emerald-400/30 animate-guide-glow shrink-0 ${gid === "face" ? "animate-face-breathe" : "animate-guide-float"}`}>
+                                  <img src={gsrc} alt={glabel} className="w-full h-full object-cover" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-[11px] font-bold text-emerald-300">{glabel}</p>
+                                  <p className="text-[10px] text-white/50 leading-relaxed mt-0.5">
+                                    {gid === "water" && (language === "ar" ? "صوّر صنبور المياه لإثبات أنك توضأت" : "Photograph the tap to prove you made wudu")}
+                                    {gid === "prayer" && (language === "ar" ? "صوّر سجادة الصلاة كدليل على الاستعداد للصلاة" : "Photograph the prayer mat as proof you're ready to pray")}
+                                    {gid === "face" && (language === "ar" ? "التقط سيلفي بعينين مفتوحتين لإثبات أنك مستيقظ" : "Take a selfie with eyes open to prove you're awake")}
+                                  </p>
+                                </div>
+                              </div>
+                            );
+                          })()}
                           <div className="flex items-start gap-2.5">
                             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center text-black shrink-0">
                               {verificationTasks[currentVerificationIndex]?.icon}
@@ -4162,6 +4193,9 @@ export default function Page() {
           font-family: "Cairo", sans-serif;
         }
       `}</style>
+
+      {/* لوحة الأذكار الأربعون — عدّاد تسبيح دائري حتى ١٠٠ مع رسائل تحفيزية */}
+      <DhikrPanel open={showDhikr} onClose={() => setShowDhikr(false)} language={language} />
     </div>
   );
 }

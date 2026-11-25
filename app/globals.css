@@ -90,6 +90,79 @@ body {
   animation: pulse-glow 2s ease-in-out infinite;
 }
 
+/* ===== حركات جديدة: الأذكار وبطاقات التحقق ===== */
+
+@keyframes dhikr-in {
+  from { opacity: 0; transform: scale(0.98) translateY(8px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+.animate-dhikr-in {
+  animation: dhikr-in 0.35s ease-out both;
+}
+
+@keyframes motivation {
+  0%   { opacity: 0; transform: translate(-50%, 10px) scale(0.9); }
+  15%  { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  80%  { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -8px) scale(0.96); }
+}
+.animate-motivation {
+  animation: motivation 2.2s ease-out both;
+}
+
+@keyframes card-pop {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.035); }
+  100% { transform: scale(1); }
+}
+.animate-card-pop {
+  animation: card-pop 0.35s ease-out;
+}
+
+@keyframes ring-spin {
+  from { transform: rotate(0deg); opacity: 0.9; }
+  to   { transform: rotate(360deg); opacity: 0; }
+}
+.animate-ring-spin {
+  animation: ring-spin 0.6s linear;
+}
+
+@keyframes bounce-once {
+  0%   { transform: scale(0.6); opacity: 0; }
+  50%  { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.animate-bounce-once {
+  animation: bounce-once 0.4s ease-out both;
+}
+
+/* صورة إرشادية تطفو بهدوء داخل بطاقة التحقق */
+@keyframes guide-float {
+  0%, 100% { transform: translateY(0) rotate(-1deg); }
+  50%      { transform: translateY(-8px) rotate(1deg); }
+}
+.animate-guide-float {
+  animation: guide-float 5s ease-in-out infinite;
+}
+
+/* توهج دائري خلف صورة الإرشاد */
+@keyframes guide-glow {
+  0%, 100% { box-shadow: 0 0 18px rgba(16,185,129,0.35); }
+  50%      { box-shadow: 0 0 34px rgba(16,185,129,0.6); }
+}
+.animate-guide-glow {
+  animation: guide-glow 2.4s ease-in-out infinite;
+}
+
+/* تكبير نبضي لصورة الوجه عند التحقق */
+@keyframes face-breathe {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.04); }
+}
+.animate-face-breathe {
+  animation: face-breathe 3s ease-in-out infinite;
+}
+
 .animate-shake {
   animation: shake 0.5s ease-in-out infinite;
 }
