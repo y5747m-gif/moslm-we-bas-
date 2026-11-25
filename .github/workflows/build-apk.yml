@@ -132,33 +132,48 @@ jobs:
           ./gradlew assembleRelease --no-daemon --stacktrace
 
       - name: Prepare release signing keystore
+        id: keystore
         env:
           ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE }}
         run: |
-          if [ -z "$ANDROID_KEYSTORE_B64" ]; then
-            echo "::error::Missing ANDROID_KEYSTORE GitHub Secret (base64 encoded release keystore)"
-            exit 1
+          if [ -n "$ANDROID_KEYSTORE_B64" ] && [ -n "${{ secrets.KEY_ALIAS }}" ] && [ -n "${{ secrets.KEY_PASSWORD }}" ] && [ -n "${{ secrets.STORE_PASSWORD }}" ]; then
+            echo "$ANDROID_KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/hatsally-release.jks"
+            if [ -s "$RUNNER_TEMP/hatsally-release.jks" ]; then
+              echo "available=true" >> "$GITHUB_OUTPUT"
+              echo "✅ release keystore ready"
+            else
+              echo "available=false" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::ANDROID_KEYSTORE secrets not set - will build a debug-signed APK instead (still fully installable & functional)"
           fi
-          echo "$ANDROID_KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/hatsally-release.jks"
-          test -s "$RUNNER_TEMP/hatsally-release.jks"
 
-      - name: Assemble signed Release APK
+      - name: Assemble signed Release APK (or debug fallback)
         env:
           ANDROID_KEYSTORE_FILE: ${{ runner.temp }}/hatsally-release.jks
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          KEYSTORE_AVAILABLE: ${{ steps.keystore.outputs.available }}
         run: |
-          for value in KEY_ALIAS KEY_PASSWORD STORE_PASSWORD; do
-            if [ -z "${!value}" ]; then echo "::error::Missing GitHub Secret: $value"; exit 1; fi
-          done
           cd android
-          ./gradlew assembleRelease --no-daemon --stacktrace
+          if [ "$KEYSTORE_AVAILABLE" = "true" ]; then
+            echo "🔏 Assembling signed release APK"
+            ./gradlew assembleRelease --no-daemon --stacktrace
+          else
+            echo "🐞 Assembling debug-signed APK (installable fallback)"
+            ./gradlew assembleDebug --no-daemon --stacktrace
+          fi
 
       - name: Verify APK signature and manifest
         id: apk
         run: |
-          APK="android/app/build/outputs/apk/release/app-release.apk"
+          if [ "${{ steps.keystore.outputs.available }}" = "true" ]; then
+            APK="android/app/build/outputs/apk/release/app-release.apk"
+          else
+            APK="android/app/build/outputs/apk/debug/app-debug.apk"
+          fi
           test -s "$APK"
           APKSIGNER="${ANDROID_SDK_ROOT:-$ANDROID_HOME}/build-tools/36.0.0/apksigner"
           AAPT="${ANDROID_SDK_ROOT:-$ANDROID_HOME}/build-tools/36.0.0/aapt"
@@ -170,14 +185,15 @@ jobs:
           test -n "$VERSION_CODE" && test -n "$VERSION_NAME"
           echo "version_code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
           echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+          echo "apk_path=$APK" >> "$GITHUB_OUTPUT"
 
-      - name: Collect verified Release APK and metadata
+      - name: Collect verified APK and metadata
         env:
           APK_VERSION_CODE: ${{ steps.apk.outputs.version_code }}
           APK_VERSION_NAME: ${{ steps.apk.outputs.version_name }}
         run: |
           mkdir -p public/downloads
-          cp android/app/build/outputs/apk/release/app-release.apk public/downloads/hatsally.apk
+          cp "${{ steps.apk.outputs.apk_path }}" public/downloads/hatsally.apk
           node scripts/apk-info.mjs
           cat public/downloads/apk-info.json
 
@@ -194,7 +210,7 @@ jobs:
           tag_name: apk-latest
           name: "هتصلي APK ${{ steps.apk.outputs.version_name }} 📱"
           body: |
-            Signed production Release APK.
+            Production APK (signed release when ANDROID_KEYSTORE is configured, otherwise debug-signed — both fully installable & functional).
             Version: ${{ steps.apk.outputs.version_name }}
             Version code: ${{ steps.apk.outputs.version_code }}
           files: public/downloads/hatsally.apk
